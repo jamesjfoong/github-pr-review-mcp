@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "github-pr-review-mcp": "./dist/index.js"
+    "github-pr-review-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jamesjfoong/github-pr-review-mcp.git"
+    "url": "git+https://github.com/jamesjfoong/github-pr-review-mcp.git"
   },
   "bugs": {
     "url": "https://github.com/jamesjfoong/github-pr-review-mcp/issues"
@@ -68,6 +68,9 @@
   ],
   "engines": {
     "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "lint-staged": {
     "*.{ts,js}": [
