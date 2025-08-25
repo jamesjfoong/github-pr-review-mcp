@@ -9,7 +9,7 @@ import type {
   ReviewComment,
   SubmitReviewParams,
   UpdatePRParams,
-} from "./types";
+} from "./types.js";
 
 const MyOctokit = Octokit.plugin(paginateRest, throttling);
 

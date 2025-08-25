@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
 import { FastMCP } from "fastmcp";
-import { CodeAnalyzer } from "./code-analyzer";
-import { GitHubService } from "./github-service";
+import { CodeAnalyzer } from "./code-analyzer.js";
+import { GitHubService } from "./github-service.js";
 import type {
   AddCommentParams,
   PRParams,
   SubmitReviewParams,
   UpdatePRParams,
-} from "./types";
+} from "./types.js";
 import {
   AddCommentSchema,
   PRParamsSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
-} from "./types";
+} from "./types.js";
 
 dotenv.config();
 

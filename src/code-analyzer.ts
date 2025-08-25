@@ -1,4 +1,4 @@
-import type { AnalysisResult, CodeFile, CodeIssue } from "./types";
+import type { AnalysisResult, CodeFile, CodeIssue } from "./types.js";
 
 export class CodeAnalyzer {
   private securityPatterns = [
