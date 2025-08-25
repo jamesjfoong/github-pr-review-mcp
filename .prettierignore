@@ -31,3 +31,6 @@ coverage/
 
 # Documentation that should maintain custom formatting
 CHANGELOG.md
+
+# Generated files during CI/CD
+release-notes.md

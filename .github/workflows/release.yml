@@ -45,6 +45,9 @@ jobs:
             echo "Release $VERSION" > release-notes.md
           fi
 
+          # Ensure release-notes.md has proper formatting
+          echo "" >> release-notes.md
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
