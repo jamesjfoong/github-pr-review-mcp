@@ -1,0 +1,55 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature] "
+labels: [enhancement]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Help us understand what you'd like to see added.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem would this feature solve?
+      placeholder: "I'm trying to... but currently there's no way to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your ideal solution
+      placeholder: "I'd like to see..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative approaches?
+      placeholder: "Alternatively, we could..."
+
+  - type: checkboxes
+    id: category
+    attributes:
+      label: Feature Category
+      description: What type of feature is this?
+      options:
+        - label: New MCP tool/command
+        - label: Enhancement to existing functionality
+        - label: Code analysis improvement
+        - label: Documentation improvement
+        - label: Developer experience improvement
+        - label: Performance improvement
+        - label: Other
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Screenshots, mockups, or examples that might help

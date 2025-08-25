@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug or issue with the MCP server
+title: "[Bug] "
+labels: [bug]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the information below to help us resolve it quickly.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of github-pr-review-mcp are you using?
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Describe the bug in detail. What happened vs. what you expected?
+      placeholder: "When I try to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: List the exact steps to reproduce the bug
+      placeholder: |
+        1. Configure MCP server with...
+        2. Run command...
+        3. Observe error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: System information
+      placeholder: |
+        - OS: Ubuntu 22.04 / macOS 14 / Windows 11
+        - Node.js: v20.19.0
+        - Editor: Cursor / VSCode
+        - Repository: public/private
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: Include any error messages or logs (remove sensitive information)
+      render: text
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem

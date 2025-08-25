@@ -1,0 +1,81 @@
+{
+  "name": "github-pr-review-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for GitHub PR reviews and code analysis using FastMCP",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "github-pr-review-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/ --ext .ts",
+    "lint:fix": "eslint src/ --ext .ts --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "validate": "npm run type-check && npm run lint && npm run format:check",
+    "prepare": "husky install",
+    "prepublishOnly": "npm run validate && npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "fastmcp",
+    "github",
+    "pr",
+    "review",
+    "code-analysis"
+  ],
+  "author": "James Jeremy Foong",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesjfoong/github-pr-review-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jamesjfoong/github-pr-review-mcp/issues"
+  },
+  "homepage": "https://github.com/jamesjfoong/github-pr-review-mcp#readme",
+  "dependencies": {
+    "@octokit/plugin-paginate-rest": "^9.2.2",
+    "@octokit/plugin-throttling": "^8.2.0",
+    "@octokit/rest": "^20.1.2",
+    "dotenv": "^16.3.1",
+    "fastmcp": "^3.15.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@types/node": "^20.19.11",
+    "@typescript-eslint/eslint-plugin": "^8.40.0",
+    "@typescript-eslint/parser": "^8.40.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "prettier": "^3.6.2",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}
