@@ -44,8 +44,7 @@
   "preferGlobal": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamesjfoong/github-pr-review-mcp.git",
-    "directory": ""
+    "url": "git+https://github.com/jamesjfoong/github-pr-review-mcp.git"
   },
   "bugs": {
     "url": "https://github.com/jamesjfoong/github-pr-review-mcp/issues"

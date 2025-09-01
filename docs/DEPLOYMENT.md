@@ -44,11 +44,14 @@ This guide covers how to deploy the GitHub PR Review MCP server to various platf
 ### Manual Publish
 
 ```bash
-# Login to npm
+# Set NPM token for authentication
+export NPM_TOKEN=your_npm_access_token
+
+# Login to npm (alternative to token)
 npm login
 
 # Publish (runs validation automatically via prepublishOnly)
-npm publish
+npm publish --access public
 ```
 
 ### Automated Publishing via GitHub Actions
