@@ -1,7 +1,7 @@
 {
-  "name": "github-pr-review-mcp",
+  "name": "@jamesjfoong/github-pr-review-mcp",
   "version": "1.0.3",
-  "description": "MCP server for GitHub PR reviews and code analysis using FastMCP",
+  "description": "MCP server for GitHub PR reviews and code analysis using FastMCP. Provides AI-powered code review comments, security analysis, and automated feedback for pull requests.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -26,18 +26,35 @@
     "github",
     "pr",
     "review",
-    "code-analysis"
+    "code-analysis",
+    "ai",
+    "automation",
+    "pull-request",
+    "code-review",
+    "github-api",
+    "typescript",
+    "cli"
   ],
   "author": "James Jeremy Foong",
   "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jamesjfoong"
+  },
+  "preferGlobal": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamesjfoong/github-pr-review-mcp.git"
+    "url": "git+https://github.com/jamesjfoong/github-pr-review-mcp.git",
+    "directory": ""
   },
   "bugs": {
     "url": "https://github.com/jamesjfoong/github-pr-review-mcp/issues"
   },
   "homepage": "https://github.com/jamesjfoong/github-pr-review-mcp#readme",
+  "directories": {
+    "lib": "dist",
+    "doc": "docs"
+  },
   "dependencies": {
     "@octokit/plugin-paginate-rest": "^9.2.2",
     "@octokit/plugin-throttling": "^8.2.0",
