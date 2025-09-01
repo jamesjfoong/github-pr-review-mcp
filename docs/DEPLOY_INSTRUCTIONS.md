@@ -96,7 +96,10 @@ Your deployment is successful when:
 - ✅ GitHub repository is public and accessible
 - ✅ npm package is published and downloadable
 - ✅ GitHub Actions CI passes
-- ✅ Users can install with `npm install -g github-pr-review-mcp`
+- ✅ Users can install with ````bash
+  npm install -g github-pr-review-mcp
+
+```
 - ✅ MCP server works in Cursor/VSCode
 
 ## 🆘 If Something Goes Wrong
@@ -128,3 +131,4 @@ Your deployment is successful when:
 - 📦 Optimized for npm distribution
 
 **Go deploy and make GitHub PR reviews awesome with AI! 🚀**
+```

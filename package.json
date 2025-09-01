@@ -1,5 +1,5 @@
 {
-  "name": "@jamesjfoong/github-pr-review-mcp",
+  "name": "github-pr-review-mcp",
   "version": "1.0.3",
   "description": "MCP server for GitHub PR reviews and code analysis using FastMCP. Provides AI-powered code review comments, security analysis, and automated feedback for pull requests.",
   "type": "module",

@@ -67,5 +67,5 @@ jobs:
       - name: Post-release notification
         run: |
           echo "🎉 Successfully published version ${{ steps.extract-release-notes.outputs.VERSION }} to npm!"
-          echo "📦 Package: https://www.npmjs.com/package/@jamesjfoong/github-pr-review-mcp"
+          echo "📦 Package: https://www.npmjs.com/package/github-pr-review-mcp"
           echo "📋 Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
