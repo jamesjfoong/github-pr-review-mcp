@@ -1,5 +1,38 @@
 import { z } from "zod";
 
+// Constants and Enums
+export const DEFAULT_AUTHOR = "unknown";
+export const DEFAULT_DIFF_SIDE = "RIGHT";
+
+export enum DiffSide {
+  // eslint-disable-next-line no-unused-vars
+  LEFT = "LEFT",
+  // eslint-disable-next-line no-unused-vars
+  RIGHT = "RIGHT",
+}
+
+export enum ReviewState {
+  // eslint-disable-next-line no-unused-vars
+  APPROVED = "APPROVED",
+  // eslint-disable-next-line no-unused-vars
+  CHANGES_REQUESTED = "CHANGES_REQUESTED",
+  // eslint-disable-next-line no-unused-vars
+  COMMENTED = "COMMENTED",
+  // eslint-disable-next-line no-unused-vars
+  PENDING = "PENDING",
+}
+
+export enum FileStatus {
+  // eslint-disable-next-line no-unused-vars
+  ADDED = "added",
+  // eslint-disable-next-line no-unused-vars
+  MODIFIED = "modified",
+  // eslint-disable-next-line no-unused-vars
+  DELETED = "deleted",
+  // eslint-disable-next-line no-unused-vars
+  RENAMED = "renamed",
+}
+
 // Zod schemas for validation
 export const PRParamsSchema = z.object({
   owner: z.string().describe("Repository owner/organization"),
@@ -42,7 +75,7 @@ export const ValidateCommentTargetSchema = PRParamsSchema.extend({
   path: z.string().describe("File path in the PR"),
   line: z.number().describe("Line number to validate"),
   side: z
-    .enum(["LEFT", "RIGHT"])
+    .nativeEnum(DiffSide)
     .optional()
     .describe("Side of the diff (LEFT for old, RIGHT for new)"),
 });
@@ -68,7 +101,7 @@ export type EnsurePendingReviewParams = z.infer<
 
 export interface Review {
   id: number;
-  state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
+  state: ReviewState;
   body: string;
   author: string;
   submittedAt: string;
@@ -86,7 +119,7 @@ export interface ReviewComment {
 
 export interface CodeFile {
   filename: string;
-  status: "added" | "modified" | "deleted";
+  status: FileStatus;
   additions: number;
   deletions: number;
   patch?: string;
@@ -125,7 +158,7 @@ export interface DiffHunk {
 
 export interface FileDiffInfo {
   filename: string;
-  status: "added" | "modified" | "deleted" | "renamed";
+  status: FileStatus;
   additions: number;
   deletions: number;
   patch?: string;
@@ -137,14 +170,14 @@ export interface CommentTargetValidation {
   reason?: string;
   nearestValidLine?: {
     line: number;
-    side: "LEFT" | "RIGHT";
+    side: DiffSide;
   };
   position?: number;
 }
 
 export interface PendingReview {
   id: number;
-  state: "PENDING";
+  state: ReviewState.PENDING;
   commitId: string;
   body: string;
   user: string;
@@ -154,9 +187,75 @@ export interface PendingReviewComment {
   id: number;
   path: string;
   line: number | null;
-  side: "LEFT" | "RIGHT" | null;
+  side: DiffSide | null;
   body: string;
   commitId: string;
   createdAt: string;
   user: string;
+}
+
+// Octokit response types
+export interface OctokitReviewResponse {
+  id: number;
+  state: string;
+  body: string | null;
+  user: { login: string } | null;
+  submitted_at: string | null | undefined;
+  commit_id: string | null;
+}
+
+export interface OctokitCommentResponse {
+  id: number;
+  body: string;
+  path: string;
+  line: number | null | undefined;
+  side: string | null;
+  user: { login: string } | null;
+  created_at: string;
+  commit_id: string;
+}
+
+export interface OctokitIssueCommentResponse {
+  id: number;
+  body?: string;
+  user: { login: string } | null;
+  created_at: string;
+}
+
+export interface OctokitFileResponse {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
+export interface OctokitPRResponse {
+  title: string;
+  body: string | null;
+  state: string;
+  user: { login: string } | null;
+  created_at: string;
+  updated_at: string;
+  mergeable: boolean | null;
+  merged: boolean;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  head: { sha: string };
+}
+
+export interface PRDetails {
+  title: string;
+  body: string | null;
+  state: string;
+  author: string | undefined;
+  created_at: string;
+  updated_at: string;
+  mergeable: boolean | null;
+  merged: boolean;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  head_sha: string;
 }

@@ -1,21 +1,26 @@
 import { Octokit } from "@octokit/rest";
 import { paginateRest } from "@octokit/plugin-paginate-rest";
 import { throttling } from "@octokit/plugin-throttling";
-import type {
-  AddCommentParams,
-  CodeFile,
-  CommentTargetValidation,
-  DiffHunk,
-  EnsurePendingReviewParams,
-  FileDiffInfo,
-  PendingReview,
-  PendingReviewComment,
-  PRParams,
-  Review,
-  ReviewComment,
-  SubmitReviewParams,
-  UpdatePRParams,
-  ValidateCommentTargetParams,
+import {
+  type AddCommentParams,
+  type CodeFile,
+  type CommentTargetValidation,
+  DEFAULT_AUTHOR,
+  type DiffHunk,
+  DiffSide,
+  type EnsurePendingReviewParams,
+  type FileDiffInfo,
+  FileStatus,
+  type PendingReview,
+  type PendingReviewComment,
+  type PRDetails,
+  type PRParams,
+  type Review,
+  type ReviewComment,
+  ReviewState,
+  type SubmitReviewParams,
+  type UpdatePRParams,
+  type ValidateCommentTargetParams,
 } from "./types.js";
 
 const MyOctokit = Octokit.plugin(paginateRest, throttling);
@@ -52,7 +57,7 @@ export class GitHubService {
     );
 
     return Promise.all(
-      reviews.map(async (review: any) => {
+      reviews.map(async (review) => {
         const comments = await this.octokit.paginate(
           this.octokit.pulls.listCommentsForReview,
           {
@@ -65,21 +70,40 @@ export class GitHubService {
 
         return {
           id: review.id,
-          state: review.state as Review["state"],
-          body: review.body || "",
-          author: review.user?.login || "unknown",
-          submittedAt: review.submitted_at || "",
-          comments: comments.map((comment: any) => ({
-            id: comment.id,
-            body: comment.body,
-            path: comment.path,
-            line: comment.line || undefined,
-            author: comment.user?.login || "unknown",
-            createdAt: comment.created_at,
-          })),
+          state: this.mapReviewState(review.state),
+          body: review.body ?? "",
+          author: review.user?.login ?? DEFAULT_AUTHOR,
+          submittedAt: review.submitted_at ?? "",
+          comments: comments.map((comment) => this.mapReviewComment(comment)),
         };
       })
     );
+  }
+
+  private mapReviewState(state: string): ReviewState {
+    switch (state) {
+      case "APPROVED":
+        return ReviewState.APPROVED;
+      case "CHANGES_REQUESTED":
+        return ReviewState.CHANGES_REQUESTED;
+      case "COMMENTED":
+        return ReviewState.COMMENTED;
+      case "PENDING":
+        return ReviewState.PENDING;
+      default:
+        return ReviewState.COMMENTED;
+    }
+  }
+
+  private mapReviewComment(comment: any): ReviewComment {
+    return {
+      id: comment.id,
+      body: comment.body,
+      path: comment.path,
+      line: comment.line ?? undefined,
+      author: comment.user?.login ?? DEFAULT_AUTHOR,
+      createdAt: comment.created_at,
+    };
   }
 
   async getPRComments(params: PRParams): Promise<ReviewComment[]> {
@@ -92,10 +116,10 @@ export class GitHubService {
       }
     );
 
-    return comments.map((comment: any) => ({
+    return comments.map((comment) => ({
       id: comment.id,
-      body: comment.body || "",
-      author: comment.user?.login || "unknown",
+      body: comment.body ?? "",
+      author: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
     }));
   }
@@ -107,13 +131,28 @@ export class GitHubService {
       pull_number: params.prNumber,
     });
 
-    return files.map((file: any) => ({
+    return files.map((file) => ({
       filename: file.filename,
-      status: file.status as CodeFile["status"],
+      status: this.mapFileStatus(file.status),
       additions: file.additions,
       deletions: file.deletions,
       patch: file.patch,
     }));
+  }
+
+  private mapFileStatus(status: string): FileStatus {
+    switch (status) {
+      case "added":
+        return FileStatus.ADDED;
+      case "modified":
+        return FileStatus.MODIFIED;
+      case "deleted":
+        return FileStatus.DELETED;
+      case "renamed":
+        return FileStatus.RENAMED;
+      default:
+        return FileStatus.MODIFIED;
+    }
   }
 
   async submitReview(params: SubmitReviewParams): Promise<void> {
@@ -164,7 +203,14 @@ export class GitHubService {
   }
 
   async updatePR(params: UpdatePRParams): Promise<void> {
-    const updateData: any = {
+    const updateData: {
+      owner: string;
+      repo: string;
+      pull_number: number;
+      title?: string;
+      body?: string;
+      state?: "open" | "closed";
+    } = {
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
@@ -172,31 +218,32 @@ export class GitHubService {
 
     if (params.title) updateData.title = params.title;
     if (params.body) updateData.body = params.body;
-    if (params.state) updateData.state = params.state;
+    if (params.state) updateData.state = params.state as "open" | "closed";
 
     await this.octokit.pulls.update(updateData);
   }
 
-  async getPRDetails(params: PRParams): Promise<any> {
+  async getPRDetails(params: PRParams): Promise<PRDetails> {
     const response = await this.octokit.pulls.get({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
     });
 
+    const data = response.data;
     return {
-      title: response.data.title,
-      body: response.data.body,
-      state: response.data.state,
-      author: response.data.user?.login,
-      created_at: response.data.created_at,
-      updated_at: response.data.updated_at,
-      mergeable: response.data.mergeable,
-      merged: response.data.merged,
-      additions: response.data.additions,
-      deletions: response.data.deletions,
-      changed_files: response.data.changed_files,
-      head_sha: response.data.head.sha,
+      title: data.title,
+      body: data.body,
+      state: data.state,
+      author: data.user?.login,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      mergeable: data.mergeable,
+      merged: data.merged,
+      additions: data.additions,
+      deletions: data.deletions,
+      changed_files: data.changed_files,
+      head_sha: data.head.sha,
     };
   }
 
@@ -210,11 +257,11 @@ export class GitHubService {
       pull_number: params.prNumber,
     });
 
-    return files.map((file: any) => {
+    return files.map((file) => {
       const hunks = file.patch ? this.parseDiffHunks(file.patch) : [];
       return {
         filename: file.filename,
-        status: file.status as FileDiffInfo["status"],
+        status: this.mapFileStatus(file.status),
         additions: file.additions,
         deletions: file.deletions,
         patch: file.patch,
@@ -280,7 +327,7 @@ export class GitHubService {
   async validatePRCommentTarget(
     params: ValidateCommentTargetParams
   ): Promise<CommentTargetValidation> {
-    const side = params.side || "RIGHT";
+    const side = params.side ?? DiffSide.RIGHT;
     const diffHunks = await this.getPRDiffHunks(params);
     const file = diffHunks.find((f) => f.filename === params.path);
 
@@ -300,7 +347,7 @@ export class GitHubService {
 
     // Check if the line is within any hunk
     for (const hunk of file.hunks) {
-      if (side === "RIGHT") {
+      if (side === DiffSide.RIGHT) {
         // Check new file side
         const endLine = hunk.newStart + hunk.newLines - 1;
         if (params.line >= hunk.newStart && params.line <= endLine) {
@@ -338,11 +385,7 @@ export class GitHubService {
   /**
    * Compute the position in the diff for a given line and side
    */
-  private computePosition(
-    patch: string,
-    line: number,
-    side: "LEFT" | "RIGHT"
-  ): number {
+  private computePosition(patch: string, line: number, side: DiffSide): number {
     const lines = patch.split("\n");
     let position = 0;
     let currentOldLine = 0;
@@ -356,20 +399,20 @@ export class GitHubService {
         /@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/
       );
       if (hunkMatch) {
-        currentOldLine = parseInt(hunkMatch[1]) - 1;
-        currentNewLine = parseInt(hunkMatch[3]) - 1;
+        currentOldLine = parseInt(hunkMatch[1], 10) - 1;
+        currentNewLine = parseInt(hunkMatch[3], 10) - 1;
         continue;
       }
 
       // Track line numbers based on diff markers
       if (diffLine.startsWith("-")) {
         currentOldLine++;
-        if (side === "LEFT" && currentOldLine === line) {
+        if (side === DiffSide.LEFT && currentOldLine === line) {
           return position;
         }
       } else if (diffLine.startsWith("+")) {
         currentNewLine++;
-        if (side === "RIGHT" && currentNewLine === line) {
+        if (side === DiffSide.RIGHT && currentNewLine === line) {
           return position;
         }
       } else if (!diffLine.startsWith("\\")) {
@@ -377,8 +420,8 @@ export class GitHubService {
         currentOldLine++;
         currentNewLine++;
         if (
-          (side === "LEFT" && currentOldLine === line) ||
-          (side === "RIGHT" && currentNewLine === line)
+          (side === DiffSide.LEFT && currentOldLine === line) ||
+          (side === DiffSide.RIGHT && currentNewLine === line)
         ) {
           return position;
         }
@@ -394,47 +437,66 @@ export class GitHubService {
   private findNearestValidLine(
     hunks: DiffHunk[],
     targetLine: number,
-    side: "LEFT" | "RIGHT"
-  ): { line: number; side: "LEFT" | "RIGHT" } | undefined {
+    side: DiffSide
+  ): { line: number; side: DiffSide } | undefined {
     let nearest: { line: number; distance: number } | null = null;
 
     for (const hunk of hunks) {
-      if (side === "RIGHT") {
-        // Check new file side
-        const start = hunk.newStart;
-        const end = hunk.newStart + hunk.newLines - 1;
-
-        if (targetLine < start) {
-          const distance = start - targetLine;
-          if (!nearest || distance < nearest.distance) {
-            nearest = { line: start, distance };
-          }
-        } else if (targetLine > end) {
-          const distance = targetLine - end;
-          if (!nearest || distance < nearest.distance) {
-            nearest = { line: end, distance };
-          }
-        }
+      if (side === DiffSide.RIGHT) {
+        const nearestInHunk = this.findNearestInHunkForNewFile(
+          hunk,
+          targetLine
+        );
+        nearest = this.updateNearest(nearest, nearestInHunk);
       } else {
-        // Check old file side
-        const start = hunk.oldStart;
-        const end = hunk.oldStart + hunk.oldLines - 1;
-
-        if (targetLine < start) {
-          const distance = start - targetLine;
-          if (!nearest || distance < nearest.distance) {
-            nearest = { line: start, distance };
-          }
-        } else if (targetLine > end) {
-          const distance = targetLine - end;
-          if (!nearest || distance < nearest.distance) {
-            nearest = { line: end, distance };
-          }
-        }
+        const nearestInHunk = this.findNearestInHunkForOldFile(
+          hunk,
+          targetLine
+        );
+        nearest = this.updateNearest(nearest, nearestInHunk);
       }
     }
 
     return nearest ? { line: nearest.line, side } : undefined;
+  }
+
+  private findNearestInHunkForNewFile(
+    hunk: DiffHunk,
+    targetLine: number
+  ): { line: number; distance: number } | null {
+    const start = hunk.newStart;
+    const end = hunk.newStart + hunk.newLines - 1;
+
+    if (targetLine < start) {
+      return { line: start, distance: start - targetLine };
+    } else if (targetLine > end) {
+      return { line: end, distance: targetLine - end };
+    }
+    return null;
+  }
+
+  private findNearestInHunkForOldFile(
+    hunk: DiffHunk,
+    targetLine: number
+  ): { line: number; distance: number } | null {
+    const start = hunk.oldStart;
+    const end = hunk.oldStart + hunk.oldLines - 1;
+
+    if (targetLine < start) {
+      return { line: start, distance: start - targetLine };
+    } else if (targetLine > end) {
+      return { line: end, distance: targetLine - end };
+    }
+    return null;
+  }
+
+  private updateNearest(
+    current: { line: number; distance: number } | null,
+    candidate: { line: number; distance: number } | null
+  ): { line: number; distance: number } | null {
+    if (!candidate) return current;
+    if (!current) return candidate;
+    return candidate.distance < current.distance ? candidate : current;
   }
 
   /**
@@ -449,7 +511,7 @@ export class GitHubService {
 
     // Find the pending review from the authenticated user
     const pendingReview = reviews.data.find(
-      (review: any) => review.state === "PENDING"
+      (review) => review.state === ReviewState.PENDING
     );
 
     if (!pendingReview) {
@@ -458,10 +520,10 @@ export class GitHubService {
 
     return {
       id: pendingReview.id,
-      state: "PENDING",
-      commitId: pendingReview.commit_id || "",
-      body: pendingReview.body || "",
-      user: pendingReview.user?.login || "unknown",
+      state: ReviewState.PENDING,
+      commitId: pendingReview.commit_id ?? "",
+      body: pendingReview.body ?? "",
+      user: pendingReview.user?.login ?? DEFAULT_AUTHOR,
     };
   }
 
@@ -494,16 +556,16 @@ export class GitHubService {
       repo: params.repo,
       pull_number: params.prNumber,
       commit_id: commitId,
-      body: params.body || "",
+      body: params.body ?? "",
       event: "PENDING" as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
     });
 
     return {
       id: review.data.id,
-      state: "PENDING",
+      state: ReviewState.PENDING,
       commitId,
-      body: params.body || "",
-      user: review.data.user?.login || "unknown",
+      body: params.body ?? "",
+      user: review.data.user?.login ?? DEFAULT_AUTHOR,
     };
   }
 
@@ -527,15 +589,27 @@ export class GitHubService {
       review_id: pendingReview.id,
     });
 
-    return comments.data.map((comment: any) => ({
+    return comments.data.map((comment) =>
+      this.mapPendingReviewComment(comment)
+    );
+  }
+
+  private mapPendingReviewComment(comment: any): PendingReviewComment {
+    return {
       id: comment.id,
       path: comment.path,
-      line: comment.line || null,
-      side: (comment.side as "LEFT" | "RIGHT") || null,
+      line: comment.line ?? null,
+      side: this.mapDiffSide(comment.side),
       body: comment.body,
       commitId: comment.commit_id,
       createdAt: comment.created_at,
-      user: comment.user?.login || "unknown",
-    }));
+      user: comment.user?.login ?? DEFAULT_AUTHOR,
+    };
+  }
+
+  private mapDiffSide(side: string | null): DiffSide | null {
+    if (side === "LEFT") return DiffSide.LEFT;
+    if (side === "RIGHT") return DiffSide.RIGHT;
+    return null;
   }
 }
