@@ -349,6 +349,9 @@ export class GitHubService {
     for (const hunk of file.hunks) {
       if (side === DiffSide.RIGHT) {
         // Check new file side
+        // Handle edge case: if newLines is 0 (pure deletion), skip this hunk for RIGHT side
+        if (hunk.newLines === 0) continue;
+
         const endLine = hunk.newStart + hunk.newLines - 1;
         if (params.line >= hunk.newStart && params.line <= endLine) {
           return {
@@ -358,6 +361,9 @@ export class GitHubService {
         }
       } else {
         // Check old file side (LEFT)
+        // Handle edge case: if oldLines is 0 (pure addition), skip this hunk for LEFT side
+        if (hunk.oldLines === 0) continue;
+
         const endLine = hunk.oldStart + hunk.oldLines - 1;
         if (params.line >= hunk.oldStart && params.line <= endLine) {
           return {
@@ -464,6 +470,9 @@ export class GitHubService {
     hunk: DiffHunk,
     targetLine: number
   ): { line: number; distance: number } | null {
+    // Skip hunks with no new lines (pure deletions)
+    if (hunk.newLines === 0) return null;
+
     const start = hunk.newStart;
     const end = hunk.newStart + hunk.newLines - 1;
 
@@ -479,6 +488,9 @@ export class GitHubService {
     hunk: DiffHunk,
     targetLine: number
   ): { line: number; distance: number } | null {
+    // Skip hunks with no old lines (pure additions)
+    if (hunk.oldLines === 0) return null;
+
     const start = hunk.oldStart;
     const end = hunk.oldStart + hunk.oldLines - 1;
 
@@ -500,9 +512,12 @@ export class GitHubService {
   }
 
   /**
-   * Get the current pending review for the PR (if any)
+   * Get the current pending review for the PR from the authenticated user
    */
   async getPendingReview(params: PRParams): Promise<PendingReview | null> {
+    // Get authenticated user
+    const { data: user } = await this.octokit.users.getAuthenticated();
+
     const reviews = await this.octokit.pulls.listReviews({
       owner: params.owner,
       repo: params.repo,
@@ -511,7 +526,9 @@ export class GitHubService {
 
     // Find the pending review from the authenticated user
     const pendingReview = reviews.data.find(
-      (review) => review.state === ReviewState.PENDING
+      (review) =>
+        review.state === ReviewState.PENDING &&
+        review.user?.login === user.login
     );
 
     if (!pendingReview) {
@@ -549,15 +566,18 @@ export class GitHubService {
     const commitId = pr.data.head.sha;
 
     // Create a new pending review
-    // Note: The GitHub API accepts "PENDING" as event to create a draft review,
-    // though it may not be in the official TypeScript types
+    // Note: The GitHub API accepts "PENDING" as an event type to create a draft review,
+    // but this value is not included in the official Octokit TypeScript types.
+    // We intentionally escape the type system here (`as any`) and then cast to
+    // the expected union type to document this discrepancy between the API
+    // behavior and the TypeScript definitions.
     const review = await this.octokit.pulls.createReview({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
       commit_id: commitId,
       body: params.body ?? "",
-      event: "PENDING" as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
+      event: "PENDING" as any as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
     });
 
     return {

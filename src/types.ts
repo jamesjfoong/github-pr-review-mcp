@@ -2,7 +2,6 @@ import { z } from "zod";
 
 // Constants and Enums
 export const DEFAULT_AUTHOR = "unknown";
-export const DEFAULT_DIFF_SIDE = "RIGHT";
 
 export enum DiffSide {
   // eslint-disable-next-line no-unused-vars
