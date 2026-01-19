@@ -405,8 +405,17 @@ export class GitHubService {
         /@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/
       );
       if (hunkMatch) {
-        currentOldLine = parseInt(hunkMatch[1], 10) - 1;
-        currentNewLine = parseInt(hunkMatch[3], 10) - 1;
+        const parsedOldLine = parseInt(hunkMatch[1], 10);
+        const parsedNewLine = parseInt(hunkMatch[3], 10);
+
+        // Validate parsed values to handle malformed hunk headers
+        if (Number.isNaN(parsedOldLine) || Number.isNaN(parsedNewLine)) {
+          // Skip malformed hunk header; continue with existing line counters
+          continue;
+        }
+
+        currentOldLine = parsedOldLine - 1;
+        currentNewLine = parsedNewLine - 1;
         continue;
       }
 

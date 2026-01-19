@@ -193,57 +193,6 @@ export interface PendingReviewComment {
   user: string;
 }
 
-// Octokit response types
-export interface OctokitReviewResponse {
-  id: number;
-  state: string;
-  body: string | null;
-  user: { login: string } | null;
-  submitted_at: string | null | undefined;
-  commit_id: string | null;
-}
-
-export interface OctokitCommentResponse {
-  id: number;
-  body: string;
-  path: string;
-  line: number | null | undefined;
-  side: string | null;
-  user: { login: string } | null;
-  created_at: string;
-  commit_id: string;
-}
-
-export interface OctokitIssueCommentResponse {
-  id: number;
-  body?: string;
-  user: { login: string } | null;
-  created_at: string;
-}
-
-export interface OctokitFileResponse {
-  filename: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  patch?: string;
-}
-
-export interface OctokitPRResponse {
-  title: string;
-  body: string | null;
-  state: string;
-  user: { login: string } | null;
-  created_at: string;
-  updated_at: string;
-  mergeable: boolean | null;
-  merged: boolean;
-  additions: number;
-  deletions: number;
-  changed_files: number;
-  head: { sha: string };
-}
-
 export interface PRDetails {
   title: string;
   body: string | null;
