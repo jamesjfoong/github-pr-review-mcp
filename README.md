@@ -19,6 +19,14 @@ A **Model Context Protocol (MCP) server** that provides GitHub PR review capabil
 - **Reply to Reviews** - Respond to existing review comments
 - **Update PRs** - Modify PR title, description, or state
 
+### 🎯 **MVP Feature 3: Diff-Aware Inline Comments & Pending Reviews**
+
+- **Get Diff Hunks** - Retrieve diff hunks with precise line mapping for inline comments
+- **Validate Comment Targets** - Verify if a line/path is valid in the PR diff before commenting
+- **Pending Review Management** - Create, retrieve, and manage draft reviews
+- **List Draft Comments** - View all pending comments before submitting a review
+- **No HTML Scraping** - All operations use GitHub REST APIs for reliability
+
 ## Quick Start
 
 ### Prerequisites
@@ -73,16 +81,21 @@ npm run build
 
 ## Available Tools
 
-| Tool               | Description                                       | Parameters                                                            |
-| ------------------ | ------------------------------------------------- | --------------------------------------------------------------------- |
-| `get_pr_reviews`   | Get all reviews for a PR                          | `owner`, `repo`, `prNumber`                                           |
-| `get_pr_comments`  | Get all comments on a PR                          | `owner`, `repo`, `prNumber`                                           |
-| `analyze_pr_code`  | AI code analysis with security/quality checks     | `owner`, `repo`, `prNumber`                                           |
-| `get_pr_files`     | List changed files with stats                     | `owner`, `repo`, `prNumber`                                           |
-| `get_pr_details`   | Get comprehensive PR information                  | `owner`, `repo`, `prNumber`                                           |
-| `submit_pr_review` | Submit a review (approve/request changes/comment) | `owner`, `repo`, `prNumber`, `body`, `event`, `comments?`             |
-| `add_pr_comment`   | Add general or line-specific comments             | `owner`, `repo`, `prNumber`, `body`, `path?`, `line?`, `in_reply_to?` |
-| `update_pr`        | Update PR title, description, or state            | `owner`, `repo`, `prNumber`, `title?`, `body?`, `state?`              |
+| Tool                           | Description                                                   | Parameters                                                            |
+| ------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `get_pr_reviews`               | Get all reviews for a PR                                      | `owner`, `repo`, `prNumber`                                           |
+| `get_pr_comments`              | Get all comments on a PR                                      | `owner`, `repo`, `prNumber`                                           |
+| `analyze_pr_code`              | AI code analysis with security/quality checks                 | `owner`, `repo`, `prNumber`                                           |
+| `get_pr_files`                 | List changed files with stats                                 | `owner`, `repo`, `prNumber`                                           |
+| `get_pr_details`               | Get comprehensive PR information                              | `owner`, `repo`, `prNumber`                                           |
+| `submit_pr_review`             | Submit a review (approve/request changes/comment)             | `owner`, `repo`, `prNumber`, `body`, `event`, `comments?`             |
+| `add_pr_comment`               | Add general or line-specific comments                         | `owner`, `repo`, `prNumber`, `body`, `path?`, `line?`, `in_reply_to?` |
+| `update_pr`                    | Update PR title, description, or state                        | `owner`, `repo`, `prNumber`, `title?`, `body?`, `state?`              |
+| `get_pr_diff_hunks`            | Get diff hunks with line mapping for inline comment placement | `owner`, `repo`, `prNumber`                                           |
+| `validate_pr_comment_target`   | Validate if a comment target exists in the PR diff            | `owner`, `repo`, `prNumber`, `path`, `line`, `side?`                  |
+| `ensure_pending_review`        | Create or reuse a pending review for draft comments           | `owner`, `repo`, `prNumber`, `body?`                                  |
+| `get_pending_review`           | Get the current pending review (if any)                       | `owner`, `repo`, `prNumber`                                           |
+| `list_pending_review_comments` | List all draft comments in the pending review                 | `owner`, `repo`, `prNumber`                                           |
 
 ## Usage Examples
 
@@ -106,7 +119,20 @@ npm run build
 2. Update PR description: update_pr(owner: "owner", repo: "repo", prNumber: 123, body: "Updated PR description with changes made...")
 ```
 
-### Example 3: Automated Code Analysis
+### Example 3: Draft Review with Inline Comments (New!)
+
+```
+🤖: Create a draft review with inline comments on PR #123
+
+1. Ensure pending review exists: ensure_pending_review(owner: "owner", repo: "repo", prNumber: 123, body: "Draft review comments")
+2. Get diff hunks to find valid lines: get_pr_diff_hunks(owner: "owner", repo: "repo", prNumber: 123)
+3. Validate comment target: validate_pr_comment_target(owner: "owner", repo: "repo", prNumber: 123, path: "src/main.ts", line: 45, side: "RIGHT")
+4. Add inline comment if valid: add_pr_comment(owner: "owner", repo: "repo", prNumber: 123, body: "Consider refactoring this method", path: "src/main.ts", line: 45)
+5. List pending comments to verify: list_pending_review_comments(owner: "owner", repo: "repo", prNumber: 123)
+6. Submit the review when ready: submit_pr_review(owner: "owner", repo: "repo", prNumber: 123, body: "Overall looks good!", event: "COMMENT")
+```
+
+### Example 4: Automated Code Analysis
 
 The `analyze_pr_code` tool automatically detects:
 
