@@ -240,11 +240,26 @@ export class GitHubService {
         if (currentHunk) {
           hunks.push(currentHunk);
         }
+        const oldStart = parseInt(hunkMatch[1], 10);
+        const oldLines = hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1;
+        const newStart = parseInt(hunkMatch[3], 10);
+        const newLines = hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1;
+
+        // Validate parsed values
+        if (
+          isNaN(oldStart) ||
+          isNaN(oldLines) ||
+          isNaN(newStart) ||
+          isNaN(newLines)
+        ) {
+          continue; // Skip malformed hunk header
+        }
+
         currentHunk = {
-          oldStart: parseInt(hunkMatch[1]),
-          oldLines: hunkMatch[2] ? parseInt(hunkMatch[2]) : 1,
-          newStart: parseInt(hunkMatch[3]),
-          newLines: hunkMatch[4] ? parseInt(hunkMatch[4]) : 1,
+          oldStart,
+          oldLines,
+          newStart,
+          newLines,
           lines: [],
         };
       } else if (currentHunk) {
@@ -472,13 +487,15 @@ export class GitHubService {
     const commitId = pr.data.head.sha;
 
     // Create a new pending review
+    // Note: The GitHub API accepts "PENDING" as event to create a draft review,
+    // though it may not be in the official TypeScript types
     const review = await this.octokit.pulls.createReview({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
       commit_id: commitId,
       body: params.body || "",
-      event: "PENDING" as any, // Create as pending
+      event: "PENDING" as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
     });
 
     return {
