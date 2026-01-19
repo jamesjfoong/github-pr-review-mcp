@@ -5,15 +5,19 @@ import { CodeAnalyzer } from "./code-analyzer.js";
 import { GitHubService } from "./github-service.js";
 import type {
   AddCommentParams,
+  EnsurePendingReviewParams,
   PRParams,
   SubmitReviewParams,
   UpdatePRParams,
+  ValidateCommentTargetParams,
 } from "./types.js";
 import {
   AddCommentSchema,
+  EnsurePendingReviewSchema,
   PRParamsSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
+  ValidateCommentTargetSchema,
 } from "./types.js";
 
 dotenv.config();
@@ -174,6 +178,103 @@ server.addTool({
         {
           type: "text",
           text: JSON.stringify(details, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Get PR Diff Hunks
+server.addTool({
+  name: "get_pr_diff_hunks",
+  description:
+    "Get diff hunks with line mapping for all changed files in a PR. Returns per-file hunks with oldStart/oldLines, newStart/newLines, and patch content for accurate inline comment placement.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const diffHunks = await githubService.getPRDiffHunks(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(diffHunks, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Validate PR Comment Target
+server.addTool({
+  name: "validate_pr_comment_target",
+  description:
+    "Validate if a comment target (path, line, side) is valid for the PR diff. Returns validation status, reason for invalidity, and nearest valid line suggestion if applicable.",
+  parameters: ValidateCommentTargetSchema,
+  execute: async (params: ValidateCommentTargetParams) => {
+    const validation = await githubService.validatePRCommentTarget(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(validation, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Ensure Pending Review
+server.addTool({
+  name: "ensure_pending_review",
+  description:
+    "Ensure a pending review exists for the PR. Creates a new pending review if none exists, or returns the existing one. Returns reviewId and commitId for adding inline comments.",
+  parameters: EnsurePendingReviewSchema,
+  execute: async (params: EnsurePendingReviewParams) => {
+    const review = await githubService.ensurePendingReview(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(review, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Get Pending Review
+server.addTool({
+  name: "get_pending_review",
+  description:
+    "Get the current pending review for the PR (if any). Returns null if no pending review exists.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const review = await githubService.getPendingReview(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: review
+            ? JSON.stringify(review, null, 2)
+            : "No pending review found",
+        },
+      ],
+    };
+  },
+});
+
+// Tool: List Pending Review Comments
+server.addTool({
+  name: "list_pending_review_comments",
+  description:
+    "List all draft comments in the pending review for the PR. Returns empty array if no pending review exists. Each comment includes path, line, side, body, and metadata.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const comments = await githubService.listPendingReviewComments(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(comments, null, 2),
         },
       ],
     };

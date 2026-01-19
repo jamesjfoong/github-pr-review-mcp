@@ -38,11 +38,33 @@ export const UpdatePRSchema = PRParamsSchema.extend({
   state: z.enum(["open", "closed"]).optional().describe("PR state"),
 });
 
+export const ValidateCommentTargetSchema = PRParamsSchema.extend({
+  path: z.string().describe("File path in the PR"),
+  line: z.number().describe("Line number to validate"),
+  side: z
+    .enum(["LEFT", "RIGHT"])
+    .optional()
+    .describe("Side of the diff (LEFT for old, RIGHT for new)"),
+});
+
+export const EnsurePendingReviewSchema = PRParamsSchema.extend({
+  body: z
+    .string()
+    .optional()
+    .describe("Optional body text for the pending review"),
+});
+
 // Types
 export type PRParams = z.infer<typeof PRParamsSchema>;
 export type SubmitReviewParams = z.infer<typeof SubmitReviewSchema>;
 export type AddCommentParams = z.infer<typeof AddCommentSchema>;
 export type UpdatePRParams = z.infer<typeof UpdatePRSchema>;
+export type ValidateCommentTargetParams = z.infer<
+  typeof ValidateCommentTargetSchema
+>;
+export type EnsurePendingReviewParams = z.infer<
+  typeof EnsurePendingReviewSchema
+>;
 
 export interface Review {
   id: number;
@@ -90,4 +112,51 @@ export interface AnalysisResult {
   issues: CodeIssue[];
   suggestions: string[];
   assessment: "approved" | "needs-work" | "requires-changes";
+}
+
+// Diff-related interfaces
+export interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
+
+export interface FileDiffInfo {
+  filename: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  additions: number;
+  deletions: number;
+  patch?: string;
+  hunks: DiffHunk[];
+}
+
+export interface CommentTargetValidation {
+  valid: boolean;
+  reason?: string;
+  nearestValidLine?: {
+    line: number;
+    side: "LEFT" | "RIGHT";
+  };
+  position?: number;
+}
+
+export interface PendingReview {
+  id: number;
+  state: "PENDING";
+  commitId: string;
+  body: string;
+  user: string;
+}
+
+export interface PendingReviewComment {
+  id: number;
+  path: string;
+  line: number | null;
+  side: "LEFT" | "RIGHT" | null;
+  body: string;
+  commitId: string;
+  createdAt: string;
+  user: string;
 }
