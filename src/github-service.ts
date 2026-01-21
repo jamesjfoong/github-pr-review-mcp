@@ -25,9 +25,16 @@ import {
 
 const MyOctokit = Octokit.plugin(paginateRest, throttling);
 
+/**
+ * Service for interacting with GitHub API for PR reviews and comments
+ */
 export class GitHubService {
   private octokit: InstanceType<typeof MyOctokit>;
 
+  /**
+   * Creates a new GitHubService instance
+   * @param token - GitHub Personal Access Token
+   */
   constructor(token: string) {
     this.octokit = new MyOctokit({
       auth: token,
@@ -46,38 +53,50 @@ export class GitHubService {
     });
   }
 
+  /**
+   * Get all reviews for a pull request
+   * @param params - PR parameters (owner, repo, prNumber)
+   * @returns Array of reviews with comments
+   * @throws Error if GitHub API call fails
+   */
   async getPRReviews(params: PRParams): Promise<Review[]> {
-    const reviews = await this.octokit.paginate(
-      this.octokit.pulls.listReviews,
-      {
-        owner: params.owner,
-        repo: params.repo,
-        pull_number: params.prNumber,
-      }
-    );
+    try {
+      const reviews = await this.octokit.paginate(
+        this.octokit.pulls.listReviews,
+        {
+          owner: params.owner,
+          repo: params.repo,
+          pull_number: params.prNumber,
+        }
+      );
 
-    return Promise.all(
-      reviews.map(async (review) => {
-        const comments = await this.octokit.paginate(
-          this.octokit.pulls.listCommentsForReview,
-          {
-            owner: params.owner,
-            repo: params.repo,
-            pull_number: params.prNumber,
-            review_id: review.id,
-          }
-        );
+      return Promise.all(
+        reviews.map(async (review) => {
+          const comments = await this.octokit.paginate(
+            this.octokit.pulls.listCommentsForReview,
+            {
+              owner: params.owner,
+              repo: params.repo,
+              pull_number: params.prNumber,
+              review_id: review.id,
+            }
+          );
 
-        return {
-          id: review.id,
-          state: this.mapReviewState(review.state),
-          body: review.body ?? "",
-          author: review.user?.login ?? DEFAULT_AUTHOR,
-          submittedAt: review.submitted_at ?? "",
-          comments: comments.map((comment) => this.mapReviewComment(comment)),
-        };
-      })
-    );
+          return {
+            id: review.id,
+            state: this.mapReviewState(review.state),
+            body: review.body ?? "",
+            author: review.user?.login ?? DEFAULT_AUTHOR,
+            submittedAt: review.submitted_at ?? "",
+            comments: comments.map((comment) => this.mapReviewComment(comment)),
+          };
+        })
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to get PR reviews: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   private mapReviewState(state: string): ReviewState {
@@ -95,11 +114,15 @@ export class GitHubService {
     }
   }
 
-  private mapReviewComment(comment: any): ReviewComment {
+  private mapReviewComment(
+    comment: Awaited<
+      ReturnType<typeof this.octokit.pulls.listCommentsForReview>
+    >["data"][number]
+  ): ReviewComment {
     return {
       id: comment.id,
-      body: comment.body,
-      path: comment.path,
+      body: comment.body ?? "",
+      path: comment.path ?? undefined,
       line: comment.line ?? undefined,
       author: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
@@ -527,14 +550,18 @@ export class GitHubService {
     // Get authenticated user
     const { data: user } = await this.octokit.users.getAuthenticated();
 
-    const reviews = await this.octokit.pulls.listReviews({
-      owner: params.owner,
-      repo: params.repo,
-      pull_number: params.prNumber,
-    });
+    // Use paginate to fetch all reviews, not just the first page
+    const reviews = await this.octokit.paginate(
+      this.octokit.pulls.listReviews,
+      {
+        owner: params.owner,
+        repo: params.repo,
+        pull_number: params.prNumber,
+      }
+    );
 
     // Find the pending review from the authenticated user
-    const pendingReview = reviews.data.find(
+    const pendingReview = reviews.find(
       (review) =>
         review.state === ReviewState.PENDING &&
         review.user?.login === user.login
@@ -574,20 +601,25 @@ export class GitHubService {
 
     const commitId = pr.data.head.sha;
 
-    // Create a new pending review
-    // Note: The GitHub API accepts "PENDING" as an event type to create a draft review,
-    // but this value is not included in the official Octokit TypeScript types.
-    // We intentionally escape the type system here (`as any`) and then cast to
-    // the expected union type to document this discrepancy between the API
-    // behavior and the TypeScript definitions.
-    const review = await this.octokit.pulls.createReview({
+    // Create a new pending (draft) review
+    // Note: To create a draft review, we must omit the `event` parameter entirely.
+    // The GitHub API will automatically create a draft review when `event` is not provided.
+    // However, Octokit's TypeScript types require `event`, so we use `Omit` to properly
+    // type the parameters without the event field.
+    type CreateReviewParams = Parameters<
+      typeof this.octokit.pulls.createReview
+    >[0];
+    const reviewParams: Omit<CreateReviewParams, "event"> = {
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
       commit_id: commitId,
       body: params.body ?? "",
-      event: "PENDING" as any as "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
-    });
+      // Omit 'event' parameter to create a draft/pending review
+    };
+    const review = await this.octokit.pulls.createReview(
+      reviewParams as CreateReviewParams
+    );
 
     return {
       id: review.data.id,
@@ -623,20 +655,24 @@ export class GitHubService {
     );
   }
 
-  private mapPendingReviewComment(comment: any): PendingReviewComment {
+  private mapPendingReviewComment(
+    comment: Awaited<
+      ReturnType<typeof this.octokit.pulls.listCommentsForReview>
+    >["data"][number]
+  ): PendingReviewComment {
     return {
       id: comment.id,
-      path: comment.path,
+      path: comment.path ?? "",
       line: comment.line ?? null,
-      side: this.mapDiffSide(comment.side),
-      body: comment.body,
-      commitId: comment.commit_id,
+      side: this.mapDiffSide(comment.side ?? null),
+      body: comment.body ?? "",
+      commitId: comment.commit_id ?? "",
       createdAt: comment.created_at,
       user: comment.user?.login ?? DEFAULT_AUTHOR,
     };
   }
 
-  private mapDiffSide(side: string | null): DiffSide | null {
+  private mapDiffSide(side: string | null | undefined): DiffSide | null {
     if (side === "LEFT") return DiffSide.LEFT;
     if (side === "RIGHT") return DiffSide.RIGHT;
     return null;

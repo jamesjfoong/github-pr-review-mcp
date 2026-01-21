@@ -7,6 +7,7 @@ import type {
   AddCommentParams,
   EnsurePendingReviewParams,
   PRParams,
+  ReviewPRWithPromptParams,
   SubmitReviewParams,
   UpdatePRParams,
   ValidateCommentTargetParams,
@@ -15,10 +16,12 @@ import {
   AddCommentSchema,
   EnsurePendingReviewSchema,
   PRParamsSchema,
+  ReviewPRWithPromptSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
   ValidateCommentTargetSchema,
 } from "./types.js";
+import { formatFilesForReview, generateReviewPrompt } from "./review-prompt.js";
 
 dotenv.config();
 
@@ -28,9 +31,11 @@ if (!GITHUB_TOKEN) {
   process.exit(1);
 }
 
+// Initialize services
 const githubService = new GitHubService(GITHUB_TOKEN);
 const codeAnalyzer = new CodeAnalyzer();
 
+// Initialize MCP server
 const server = new FastMCP({
   name: "GitHub PR Review",
   version: "1.0.0",
@@ -275,6 +280,58 @@ server.addTool({
         {
           type: "text",
           text: JSON.stringify(comments, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Review PR with Prompt
+server.addTool({
+  name: "review_pr_with_prompt",
+  description:
+    "Get PR context and review prompt for AI-powered code review. Returns formatted PR data and review guidelines that can be used with an LLM to generate a comprehensive review. The LLM can then use submit_pr_review to submit the review.",
+  parameters: ReviewPRWithPromptSchema,
+  execute: async (params: ReviewPRWithPromptParams) => {
+    const [prDetails, files] = await Promise.all([
+      githubService.getPRDetails(params),
+      githubService.getPRFiles(params),
+    ]);
+
+    const reviewPrompt = generateReviewPrompt(
+      prDetails,
+      files,
+      params.customPrompt
+    );
+    const formattedFiles = formatFilesForReview(files);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              reviewPrompt,
+              prContext: {
+                title: prDetails.title,
+                author: prDetails.author,
+                state: prDetails.state,
+                additions: prDetails.additions,
+                deletions: prDetails.deletions,
+                changedFiles: prDetails.changed_files,
+                description: prDetails.body,
+              },
+              codeChanges: formattedFiles,
+              nextSteps: [
+                "Use the reviewPrompt with your LLM to generate a review",
+                "Format the LLM response into review comments",
+                "Use submit_pr_review to submit the review",
+                "Or use ensure_pending_review and add_pr_comment for draft reviews",
+              ],
+            },
+            null,
+            2
+          ),
         },
       ],
     };

@@ -4,31 +4,21 @@ import { z } from "zod";
 export const DEFAULT_AUTHOR = "unknown";
 
 export enum DiffSide {
-  // eslint-disable-next-line no-unused-vars
   LEFT = "LEFT",
-  // eslint-disable-next-line no-unused-vars
   RIGHT = "RIGHT",
 }
 
 export enum ReviewState {
-  // eslint-disable-next-line no-unused-vars
   APPROVED = "APPROVED",
-  // eslint-disable-next-line no-unused-vars
   CHANGES_REQUESTED = "CHANGES_REQUESTED",
-  // eslint-disable-next-line no-unused-vars
   COMMENTED = "COMMENTED",
-  // eslint-disable-next-line no-unused-vars
   PENDING = "PENDING",
 }
 
 export enum FileStatus {
-  // eslint-disable-next-line no-unused-vars
   ADDED = "added",
-  // eslint-disable-next-line no-unused-vars
   MODIFIED = "modified",
-  // eslint-disable-next-line no-unused-vars
   DELETED = "deleted",
-  // eslint-disable-next-line no-unused-vars
   RENAMED = "renamed",
 }
 
@@ -86,6 +76,15 @@ export const EnsurePendingReviewSchema = PRParamsSchema.extend({
     .describe("Optional body text for the pending review"),
 });
 
+export const ReviewPRWithPromptSchema = PRParamsSchema.extend({
+  customPrompt: z
+    .string()
+    .optional()
+    .describe(
+      "Optional custom review prompt. If not provided, uses default PR review guidelines."
+    ),
+});
+
 // Types
 export type PRParams = z.infer<typeof PRParamsSchema>;
 export type SubmitReviewParams = z.infer<typeof SubmitReviewSchema>;
@@ -97,6 +96,7 @@ export type ValidateCommentTargetParams = z.infer<
 export type EnsurePendingReviewParams = z.infer<
   typeof EnsurePendingReviewSchema
 >;
+export type ReviewPRWithPromptParams = z.infer<typeof ReviewPRWithPromptSchema>;
 
 export interface Review {
   id: number;
