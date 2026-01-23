@@ -426,6 +426,7 @@ export class GitHubService {
 
   /**
    * Compute the position in the diff for a given line and side
+   * @throws Error if the line cannot be found or if malformed hunk headers are encountered
    */
   private computePosition(patch: string, line: number, side: DiffSide): number {
     const lines = patch.split("\n");
@@ -444,10 +445,12 @@ export class GitHubService {
         const parsedOldLine = parseInt(hunkMatch[1], 10);
         const parsedNewLine = parseInt(hunkMatch[3], 10);
 
-        // Validate parsed values to handle malformed hunk headers
+        // Validate parsed values - throw error if malformed since this indicates
+        // a serious problem with the diff structure (shouldn't happen after validation)
         if (Number.isNaN(parsedOldLine) || Number.isNaN(parsedNewLine)) {
-          // Skip malformed hunk header; continue with existing line counters
-          continue;
+          throw new Error(
+            `Malformed hunk header at position ${position}: "${diffLine}"`
+          );
         }
 
         currentOldLine = parsedOldLine - 1;
@@ -479,7 +482,10 @@ export class GitHubService {
       }
     }
 
-    return position;
+    // This should never happen if validation worked correctly, but fail fast if it does
+    throw new Error(
+      `Line ${line} on ${side} side not found in diff patch (reached end of patch)`
+    );
   }
 
   /**
