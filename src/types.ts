@@ -22,6 +22,11 @@ export enum FileStatus {
   RENAMED = "renamed",
 }
 
+export enum PRState {
+  OPEN = "open",
+  CLOSED = "closed",
+}
+
 // Zod schemas for validation
 export const PRParamsSchema = z.object({
   owner: z.string().describe("Repository owner/organization"),
@@ -57,7 +62,7 @@ export const AddCommentSchema = PRParamsSchema.extend({
 export const UpdatePRSchema = PRParamsSchema.extend({
   title: z.string().optional().describe("New PR title"),
   body: z.string().optional().describe("New PR description"),
-  state: z.enum(["open", "closed"]).optional().describe("PR state"),
+  state: z.nativeEnum(PRState).optional().describe("PR state"),
 });
 
 export const ValidateCommentTargetSchema = PRParamsSchema.extend({

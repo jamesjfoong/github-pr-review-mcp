@@ -15,6 +15,7 @@ import {
   type PendingReviewComment,
   type PRDetails,
   type PRParams,
+  PRState,
   type Review,
   type ReviewComment,
   ReviewState,
@@ -232,7 +233,7 @@ export class GitHubService {
       pull_number: number;
       title?: string;
       body?: string;
-      state?: "open" | "closed";
+      state?: PRState;
     } = {
       owner: params.owner,
       repo: params.repo,
@@ -241,7 +242,7 @@ export class GitHubService {
 
     if (params.title) updateData.title = params.title;
     if (params.body) updateData.body = params.body;
-    if (params.state) updateData.state = params.state as "open" | "closed";
+    if (params.state) updateData.state = params.state;
 
     await this.octokit.pulls.update(updateData);
   }
@@ -274,23 +275,29 @@ export class GitHubService {
    * Get PR diff hunks with line mapping for all changed files
    */
   async getPRDiffHunks(params: PRParams): Promise<FileDiffInfo[]> {
-    const files = await this.octokit.paginate(this.octokit.pulls.listFiles, {
-      owner: params.owner,
-      repo: params.repo,
-      pull_number: params.prNumber,
-    });
+    try {
+      const files = await this.octokit.paginate(this.octokit.pulls.listFiles, {
+        owner: params.owner,
+        repo: params.repo,
+        pull_number: params.prNumber,
+      });
 
-    return files.map((file) => {
-      const hunks = file.patch ? this.parseDiffHunks(file.patch) : [];
-      return {
-        filename: file.filename,
-        status: this.mapFileStatus(file.status),
-        additions: file.additions,
-        deletions: file.deletions,
-        patch: file.patch,
-        hunks,
-      };
-    });
+      return files.map((file) => {
+        const hunks = file.patch ? this.parseDiffHunks(file.patch) : [];
+        return {
+          filename: file.filename,
+          status: this.mapFileStatus(file.status),
+          additions: file.additions,
+          deletions: file.deletions,
+          patch: file.patch,
+          hunks,
+        };
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to get PR diff hunks: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   /**
@@ -350,65 +357,71 @@ export class GitHubService {
   async validatePRCommentTarget(
     params: ValidateCommentTargetParams
   ): Promise<CommentTargetValidation> {
-    const side = params.side ?? DiffSide.RIGHT;
-    const diffHunks = await this.getPRDiffHunks(params);
-    const file = diffHunks.find((f) => f.filename === params.path);
+    try {
+      const side = params.side ?? DiffSide.RIGHT;
+      const diffHunks = await this.getPRDiffHunks(params);
+      const file = diffHunks.find((f) => f.filename === params.path);
 
-    if (!file) {
-      return {
-        valid: false,
-        reason: `File '${params.path}' not found in PR changes`,
-      };
-    }
+      if (!file) {
+        return {
+          valid: false,
+          reason: `File '${params.path}' not found in PR changes`,
+        };
+      }
 
-    if (!file.patch) {
-      return {
-        valid: false,
-        reason: `No diff available for file '${params.path}' (may be binary or too large)`,
-      };
-    }
+      if (!file.patch) {
+        return {
+          valid: false,
+          reason: `No diff available for file '${params.path}' (may be binary or too large)`,
+        };
+      }
 
-    // Check if the line is within any hunk
-    for (const hunk of file.hunks) {
-      if (side === DiffSide.RIGHT) {
-        // Check new file side
-        // Handle edge case: if newLines is 0 (pure deletion), skip this hunk for RIGHT side
-        if (hunk.newLines === 0) continue;
+      // Check if the line is within any hunk
+      for (const hunk of file.hunks) {
+        if (side === DiffSide.RIGHT) {
+          // Check new file side
+          // Handle edge case: if newLines is 0 (pure deletion), skip this hunk for RIGHT side
+          if (hunk.newLines === 0) continue;
 
-        const endLine = hunk.newStart + hunk.newLines - 1;
-        if (params.line >= hunk.newStart && params.line <= endLine) {
-          return {
-            valid: true,
-            position: this.computePosition(file.patch, params.line, side),
-          };
-        }
-      } else {
-        // Check old file side (LEFT)
-        // Handle edge case: if oldLines is 0 (pure addition), skip this hunk for LEFT side
-        if (hunk.oldLines === 0) continue;
+          const endLine = hunk.newStart + hunk.newLines - 1;
+          if (params.line >= hunk.newStart && params.line <= endLine) {
+            return {
+              valid: true,
+              position: this.computePosition(file.patch, params.line, side),
+            };
+          }
+        } else {
+          // Check old file side (LEFT)
+          // Handle edge case: if oldLines is 0 (pure addition), skip this hunk for LEFT side
+          if (hunk.oldLines === 0) continue;
 
-        const endLine = hunk.oldStart + hunk.oldLines - 1;
-        if (params.line >= hunk.oldStart && params.line <= endLine) {
-          return {
-            valid: true,
-            position: this.computePosition(file.patch, params.line, side),
-          };
+          const endLine = hunk.oldStart + hunk.oldLines - 1;
+          if (params.line >= hunk.oldStart && params.line <= endLine) {
+            return {
+              valid: true,
+              position: this.computePosition(file.patch, params.line, side),
+            };
+          }
         }
       }
+
+      // Find nearest valid line
+      const nearestValid = this.findNearestValidLine(
+        file.hunks,
+        params.line,
+        side
+      );
+
+      return {
+        valid: false,
+        reason: `Line ${params.line} on ${side} side is not in the diff range`,
+        nearestValidLine: nearestValid,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to validate PR comment target: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-
-    // Find nearest valid line
-    const nearestValid = this.findNearestValidLine(
-      file.hunks,
-      params.line,
-      side
-    );
-
-    return {
-      valid: false,
-      reason: `Line ${params.line} on ${side} side is not in the diff range`,
-      nearestValidLine: nearestValid,
-    };
   }
 
   /**
@@ -563,7 +576,7 @@ export class GitHubService {
     // Find the pending review from the authenticated user
     const pendingReview = reviews.find(
       (review) =>
-        review.state === ReviewState.PENDING &&
+        this.mapReviewState(review.state) === ReviewState.PENDING &&
         review.user?.login === user.login
     );
 
@@ -587,17 +600,34 @@ export class GitHubService {
     params: EnsurePendingReviewParams
   ): Promise<PendingReview> {
     // Check if a pending review already exists
-    const existingReview = await this.getPendingReview(params);
+    let existingReview: PendingReview | null;
+    try {
+      existingReview = await this.getPendingReview(params);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to check for existing pending review: ${message}`
+      );
+    }
+
     if (existingReview) {
       return existingReview;
     }
 
     // Get the head commit SHA
-    const pr = await this.octokit.pulls.get({
-      owner: params.owner,
-      repo: params.repo,
-      pull_number: params.prNumber,
-    });
+    let pr;
+    try {
+      pr = await this.octokit.pulls.get({
+        owner: params.owner,
+        repo: params.repo,
+        pull_number: params.prNumber,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to get PR details for pending review creation: ${message}`
+      );
+    }
 
     const commitId = pr.data.head.sha;
 
@@ -617,9 +647,16 @@ export class GitHubService {
       body: params.body ?? "",
       // Omit 'event' parameter to create a draft/pending review
     };
-    const review = await this.octokit.pulls.createReview(
-      reviewParams as CreateReviewParams
-    );
+
+    let review;
+    try {
+      review = await this.octokit.pulls.createReview(
+        reviewParams as CreateReviewParams
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create pending review: ${message}`);
+    }
 
     return {
       id: review.data.id,
@@ -636,23 +673,30 @@ export class GitHubService {
   async listPendingReviewComments(
     params: PRParams
   ): Promise<PendingReviewComment[]> {
-    const pendingReview = await this.getPendingReview(params);
+    try {
+      const pendingReview = await this.getPendingReview(params);
 
-    if (!pendingReview) {
-      return [];
+      if (!pendingReview) {
+        return [];
+      }
+
+      // Get all comments for the pending review (with pagination)
+      const comments = await this.octokit.paginate(
+        this.octokit.pulls.listCommentsForReview,
+        {
+          owner: params.owner,
+          repo: params.repo,
+          pull_number: params.prNumber,
+          review_id: pendingReview.id,
+        }
+      );
+
+      return comments.map((comment) => this.mapPendingReviewComment(comment));
+    } catch (error) {
+      throw new Error(
+        `Failed to list pending review comments: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-
-    // Get all comments for the pending review
-    const comments = await this.octokit.pulls.listCommentsForReview({
-      owner: params.owner,
-      repo: params.repo,
-      pull_number: params.prNumber,
-      review_id: pendingReview.id,
-    });
-
-    return comments.data.map((comment) =>
-      this.mapPendingReviewComment(comment)
-    );
   }
 
   private mapPendingReviewComment(

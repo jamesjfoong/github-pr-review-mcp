@@ -132,7 +132,18 @@ npm run build
 6. Submit the review when ready: submit_pr_review(owner: "owner", repo: "repo", prNumber: 123, body: "Overall looks good!", event: "COMMENT")
 ```
 
-### Example 4: Automated Code Analysis
+### Example 4: AI-Powered PR Review with Custom Prompt
+
+```
+🤖: Review PR #123 using AI with custom guidelines
+
+1. Get review prompt: review_pr_with_prompt(owner: "owner", repo: "repo", prNumber: 123, customPrompt: "Focus on security vulnerabilities and performance issues")
+2. Use the returned reviewPrompt with your LLM to generate a review
+3. Format the LLM response into review comments
+4. Submit review: submit_pr_review(owner: "owner", repo: "repo", prNumber: 123, body: "AI-generated review...", event: "COMMENT")
+```
+
+### Example 5: Automated Code Analysis
 
 The `analyze_pr_code` tool automatically detects:
 

@@ -37,7 +37,7 @@ export default [
         "error",
         {
           argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_|^[A-Z_]+$", // Ignore enum members (ALL_CAPS)
+          varsIgnorePattern: "^_|^[A-Z_]+$|^[A-Z][a-zA-Z]*$", // Ignore _-prefixed variables, ALL_CAPS constants, and PascalCase enum names
           ignoreRestSiblings: true,
         },
       ],
