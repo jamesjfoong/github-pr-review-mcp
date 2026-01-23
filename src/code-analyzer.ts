@@ -1,5 +1,8 @@
 import type { AnalysisResult, CodeFile, CodeIssue } from "./types.js";
 
+/**
+ * Analyzes code changes in PRs for security issues, code smells, and quality metrics
+ */
 export class CodeAnalyzer {
   private securityPatterns = [
     {

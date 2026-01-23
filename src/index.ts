@@ -5,16 +5,23 @@ import { CodeAnalyzer } from "./code-analyzer.js";
 import { GitHubService } from "./github-service.js";
 import type {
   AddCommentParams,
+  EnsurePendingReviewParams,
   PRParams,
+  ReviewPRWithPromptParams,
   SubmitReviewParams,
   UpdatePRParams,
+  ValidateCommentTargetParams,
 } from "./types.js";
 import {
   AddCommentSchema,
+  EnsurePendingReviewSchema,
   PRParamsSchema,
+  ReviewPRWithPromptSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
+  ValidateCommentTargetSchema,
 } from "./types.js";
+import { formatFilesForReview, generateReviewPrompt } from "./review-prompt.js";
 
 dotenv.config();
 
@@ -24,9 +31,11 @@ if (!GITHUB_TOKEN) {
   process.exit(1);
 }
 
+// Initialize services
 const githubService = new GitHubService(GITHUB_TOKEN);
 const codeAnalyzer = new CodeAnalyzer();
 
+// Initialize MCP server
 const server = new FastMCP({
   name: "GitHub PR Review",
   version: "1.0.0",
@@ -174,6 +183,155 @@ server.addTool({
         {
           type: "text",
           text: JSON.stringify(details, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Get PR Diff Hunks
+server.addTool({
+  name: "get_pr_diff_hunks",
+  description:
+    "Get diff hunks with line mapping for all changed files in a PR. Returns per-file hunks with oldStart/oldLines, newStart/newLines, and patch content for accurate inline comment placement.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const diffHunks = await githubService.getPRDiffHunks(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(diffHunks, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Validate PR Comment Target
+server.addTool({
+  name: "validate_pr_comment_target",
+  description:
+    "Validate if a comment target (path, line, side) is valid for the PR diff. Returns validation status, reason for invalidity, and nearest valid line suggestion if applicable.",
+  parameters: ValidateCommentTargetSchema,
+  execute: async (params: ValidateCommentTargetParams) => {
+    const validation = await githubService.validatePRCommentTarget(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(validation, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Ensure Pending Review
+server.addTool({
+  name: "ensure_pending_review",
+  description:
+    "Ensure a pending review exists for the PR. Creates a new pending review if none exists, or returns the existing one. Returns reviewId and commitId for adding inline comments.",
+  parameters: EnsurePendingReviewSchema,
+  execute: async (params: EnsurePendingReviewParams) => {
+    const review = await githubService.ensurePendingReview(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(review, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Get Pending Review
+server.addTool({
+  name: "get_pending_review",
+  description:
+    "Get the current pending review for the PR (if any). Returns null if no pending review exists.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const review = await githubService.getPendingReview(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: review
+            ? JSON.stringify(review, null, 2)
+            : "No pending review found",
+        },
+      ],
+    };
+  },
+});
+
+// Tool: List Pending Review Comments
+server.addTool({
+  name: "list_pending_review_comments",
+  description:
+    "List all draft comments in the pending review for the PR. Returns empty array if no pending review exists. Each comment includes path, line, side, body, and metadata.",
+  parameters: PRParamsSchema,
+  execute: async (params: PRParams) => {
+    const comments = await githubService.listPendingReviewComments(params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(comments, null, 2),
+        },
+      ],
+    };
+  },
+});
+
+// Tool: Review PR with Prompt
+server.addTool({
+  name: "review_pr_with_prompt",
+  description:
+    "Get PR context and review prompt for AI-powered code review. Returns formatted PR data and review guidelines that can be used with an LLM to generate a comprehensive review. The LLM can then use submit_pr_review to submit the review.",
+  parameters: ReviewPRWithPromptSchema,
+  execute: async (params: ReviewPRWithPromptParams) => {
+    const [prDetails, files] = await Promise.all([
+      githubService.getPRDetails(params),
+      githubService.getPRFiles(params),
+    ]);
+
+    const reviewPrompt = generateReviewPrompt(
+      prDetails,
+      files,
+      params.customPrompt
+    );
+    const formattedFiles = formatFilesForReview(files);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              reviewPrompt,
+              prContext: {
+                title: prDetails.title,
+                author: prDetails.author,
+                state: prDetails.state,
+                additions: prDetails.additions,
+                deletions: prDetails.deletions,
+                changedFiles: prDetails.changed_files,
+                description: prDetails.body,
+              },
+              codeChanges: formattedFiles,
+              nextSteps: [
+                "Use the reviewPrompt with your LLM to generate a review",
+                "Format the LLM response into review comments",
+                "Use submit_pr_review to submit the review",
+                "Or use ensure_pending_review and add_pr_comment for draft reviews",
+              ],
+            },
+            null,
+            2
+          ),
         },
       ],
     };
