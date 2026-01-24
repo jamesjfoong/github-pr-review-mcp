@@ -1,0 +1,37 @@
+# Project Rules for GitHub PR Review MCP
+
+> **Note**: This file is maintained in `.github/cursorrules` and symlinked to `.cursorrules` for Cursor IDE.
+> For VS Code, see `.github/vscode-rules.md`.
+
+## Project Context
+This is a GitHub PR Review MCP server built with TypeScript, FastMCP, and Octokit.
+
+## Code Standards
+- Follow TypeScript best practices (see `.github/instructions/typescript-standards.instructions.md`)
+- Use Zod schemas for validation
+- Implement proper error handling
+- Follow MCP server guidelines (see `.github/instructions/mcp-server-guidelines.instructions.md`)
+
+## Agent Personas
+When reviewing code or PRs, use the appropriate agent persona:
+- `.github/agents/pr-reviewer.agent.md` - General code review
+- `.github/agents/security-auditor.agent.md` - Security-focused review
+- `.github/agents/code-analyzer.agent.md` - Automated analysis
+
+## Common Tasks
+- Use prompts from `.github/prompts/` or `.cursor/prompts/` directory for task-specific guidance
+- Reference collections in `.github/collections/` or `.cursor/collections/` for patterns and tools
+- Apply skills from `.github/skills/` or `.cursor/skills/` for specialized capabilities
+
+## File Organization
+- Source code in `src/`
+- Compiled output in `dist/`
+- Documentation in `docs/`
+- Agent resources in `.github/` (symlinked to `.cursor/` for IDE access)
+
+## Key Dependencies
+- FastMCP for MCP server framework
+- Octokit for GitHub API
+- Zod for validation
+- TypeScript for type safety
+

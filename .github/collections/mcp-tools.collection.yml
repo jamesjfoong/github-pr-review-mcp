@@ -1,0 +1,127 @@
+# MCP Tools Collection
+# All available tools in the GitHub PR Review MCP server
+
+tools:
+  - name: get_pr_reviews
+    description: Get all reviews for a GitHub pull request
+    parameters:
+      - owner: string (Repository owner/organization)
+      - repo: string (Repository name)
+      - prNumber: number (Pull request number)
+    use_cases:
+      - Review existing feedback
+      - Check approval status
+      - Understand review history
+
+  - name: get_pr_comments
+    description: Get all comments on a GitHub pull request
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+    use_cases:
+      - Read discussion threads
+      - Find unanswered questions
+      - Track conversation history
+
+  - name: analyze_pr_code
+    description: Analyze code changes in a PR for issues and suggestions
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+    use_cases:
+      - Automated security scanning
+      - Code quality checks
+      - Pattern detection
+
+  - name: get_pr_files
+    description: Get list of files changed in a pull request
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+    use_cases:
+      - Understand change scope
+      - Review file-level statistics
+      - Identify affected areas
+
+  - name: get_pr_details
+    description: Get detailed information about a pull request
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+    use_cases:
+      - Get PR metadata
+      - Check merge status
+      - Review PR description
+
+  - name: submit_pr_review
+    description: Submit a review to a pull request
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+      - body: string (Review comment body)
+      - event: enum ["APPROVE", "REQUEST_CHANGES", "COMMENT"]
+      - comments: array (Optional inline comments)
+    use_cases:
+      - Approve PRs
+      - Request changes
+      - Provide general feedback
+
+  - name: add_pr_comment
+    description: Add a comment to a PR (general or line-specific)
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+      - body: string
+      - path: string (Optional file path)
+      - line: number (Optional line number)
+      - commit_id: string (Optional commit SHA)
+      - in_reply_to: number (Optional comment ID to reply to)
+    use_cases:
+      - Add line-specific feedback
+      - Reply to existing comments
+      - Ask questions
+
+  - name: update_pr
+    description: Update PR title, description, or state
+    parameters:
+      - owner: string
+      - repo: string
+      - prNumber: number
+      - title: string (Optional)
+      - body: string (Optional)
+      - state: enum ["open", "closed"] (Optional)
+    use_cases:
+      - Update PR description
+      - Close PRs
+      - Modify PR title
+
+workflows:
+  - name: Complete PR Review
+    steps:
+      - get_pr_details
+      - get_pr_files
+      - analyze_pr_code
+      - get_pr_reviews
+      - get_pr_comments
+      - submit_pr_review
+
+  - name: Implement Feedback
+    steps:
+      - get_pr_reviews
+      - get_pr_comments
+      - get_pr_files
+      - [implement changes in codebase]
+      - add_pr_comment
+      - update_pr (if needed)
+
+  - name: Security Audit
+    steps:
+      - get_pr_files
+      - analyze_pr_code
+      - submit_pr_review (with security findings)

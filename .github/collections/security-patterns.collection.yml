@@ -1,0 +1,91 @@
+# Security Patterns Collection
+# Common security vulnerabilities and detection patterns
+
+patterns:
+  - name: API Key Exposure
+    pattern: api[_-]?key\s*[:=]\s*["'][^"']+["']
+    severity: critical
+    description: Hardcoded API keys in source code
+    remediation: Use environment variables or secret management
+    example_bad: |
+      const apiKey = "sk-1234567890abcdef";
+    example_good: |
+      const apiKey = process.env.API_KEY;
+
+  - name: Password Hardcoding
+    pattern: password\s*[:=]\s*["'][^"']+["']
+    severity: critical
+    description: Hardcoded passwords
+    remediation: Use secure credential storage
+    example_bad: |
+      const password = "mypassword123";
+    example_good: |
+      const password = await getSecret("db-password");
+
+  - name: Secret Exposure
+    pattern: (secret|token)\s*[:=]\s*["'][^"']+["']
+    severity: high
+    description: Hardcoded secrets or tokens
+    remediation: Store in environment variables or vault
+    example_bad: |
+      const token = "ghp_abc123xyz";
+    example_good: |
+      const token = process.env.GITHUB_TOKEN;
+
+  - name: Eval Usage
+    pattern: eval\s*\(
+    severity: critical
+    description: Dangerous eval() function usage
+    remediation: Use safe alternatives like JSON.parse()
+    example_bad: |
+      eval(userInput);
+    example_good: |
+      const parsed = JSON.parse(userInput);
+
+  - name: XSS Vulnerability
+    pattern: innerHTML\s*=
+    severity: high
+    description: Potential XSS vulnerability via innerHTML
+    remediation: Use textContent or sanitize input
+    example_bad: |
+      element.innerHTML = userInput;
+    example_good: |
+      element.textContent = userInput;
+
+code_smells:
+  - name: Console Statements
+    pattern: console\.(log|error|warn|debug)
+    severity: low
+    description: Console statements left in production code
+    remediation: Remove or use proper logging library
+
+  - name: Debugger Statements
+    pattern: debugger
+    severity: medium
+    description: Debugger statements in code
+    remediation: Remove before committing
+
+  - name: TypeScript Any Type
+    pattern: :\s*any\s*[,;)]
+    severity: medium
+    description: TypeScript any type usage
+    remediation: Use proper types or unknown
+
+  - name: TODO Comments
+    pattern: TODO|FIXME|HACK
+    severity: low
+    description: Incomplete code marked with TODO
+    remediation: Address or create issue
+
+file_checks:
+  - name: Large File Change
+    threshold: 300
+    severity: medium
+    description: File changes exceeding 300 lines
+    remediation: Consider breaking into smaller commits
+
+  - name: Large PR
+    threshold: 500
+    severity: medium
+    description: Total changes exceeding 500 lines
+    remediation: Consider splitting PR into smaller changes

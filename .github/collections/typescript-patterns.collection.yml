@@ -1,0 +1,88 @@
+# TypeScript Patterns Collection
+# Common patterns and anti-patterns for TypeScript development
+
+best_practices:
+  - name: Type Safety
+    description: Always use proper types, avoid any
+    example: |
+      // Good
+      function processData(data: UserData): ProcessedResult {
+        // ...
+      }
+
+      // Bad
+      function processData(data: any): any {
+        // ...
+      }
+
+  - name: Interface Definitions
+    description: Define interfaces for all data structures
+    example: |
+      interface PRParams {
+        owner: string;
+        repo: string;
+        prNumber: number;
+      }
+
+  - name: Zod Validation
+    description: Use Zod for runtime validation
+    example: |
+      const PRParamsSchema = z.object({
+        owner: z.string(),
+        repo: z.string(),
+        prNumber: z.number(),
+      });
+
+  - name: Error Handling
+    description: Explicit error handling with try-catch
+    example: |
+      try {
+        const result = await apiCall();
+        return result;
+      } catch (error) {
+        throw new Error(`Operation failed: ${error}`);
+      }
+
+  - name: Async/Await
+    description: Prefer async/await over promises
+    example: |
+      // Good
+      const data = await fetchData();
+
+      // Avoid
+      fetchData().then(data => { ... });
+
+anti_patterns:
+  - name: Any Type Usage
+    description: Never use any type
+    severity: high
+    fix: Use unknown or proper types
+
+  - name: Missing Error Handling
+    description: Unhandled promise rejections
+    severity: high
+    fix: Always use try-catch for async operations
+
+  - name: Type Assertions
+    description: Unsafe type assertions
+    severity: medium
+    fix: Use type guards or validation
+
+  - name: Optional Chaining Abuse
+    description: Overuse of optional chaining
+    severity: low
+    fix: Validate data structure instead
+
+naming_conventions:
+  classes: PascalCase
+  functions: camelCase
+  constants: UPPER_SNAKE_CASE
+  interfaces: PascalCase
+  types: PascalCase
+  private_members: _camelCase
+
+file_organization:
+  - one_class_per_file: true
+  - use_named_exports: true
+  - max_file_length: 300
+  - max_function_length: 50
