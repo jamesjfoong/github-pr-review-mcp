@@ -49,18 +49,13 @@ export interface PRParams {
   prNumber: number;
 }
 
-// WRONG - redundant undefined
-interface BadType {
-  value: string | undefined;
+// CORRECT - use optional property
+interface GoodType {
+  value?: string;
 }
 
-// OK - use | null for API responses
-interface ApiType {
-  data: string | null;
-}
-
-// CORRECT - use optional
-type GoodType = { value?: string };
+// CORRECT - use optional chaining when accessing
+const result = obj?.value ?? "default";
 ```
 
 ## Adding Analysis Patterns

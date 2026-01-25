@@ -24,7 +24,7 @@ This is a **Model Context Protocol (MCP) server** that provides GitHub PR review
 
 - **TypeScript**: Strict mode, ES2022 modules
 - **Strong typing**: Always use explicit, strong types. Use Zod schemas for runtime validation, define explicit `interface` or `type` for TypeScript
-- **Avoid excessive unions**: Prefer `?` over `| undefined` for optional fields; use `| null` when API can return null
+- **Use `?` for optional**: Use optional properties (`?`) and optional chaining for accessing values
 - **Style**: 2 spaces, double quotes, semicolons required, 80 char max line
 - **Naming**: kebab-case files, PascalCase classes, camelCase functions
 - **Imports**: External → internal, sorted alphabetically, use `.js` extension

@@ -12,8 +12,8 @@ description: "Ensures type safety and proper TypeScript usage. Use when adding f
 - Verify all tool parameters have Zod schemas
 - Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
 - Check for proper type definitions (no `any` unless necessary)
-- Prefer `?` over `| undefined` for optional fields
-- Allow `| null` when external APIs return null values
+- Use `?` for optional properties
+- Use optional chaining (`?.`) when accessing values
 - Verify all exports have proper types
 
 ## When to Use
@@ -45,18 +45,11 @@ export interface PRParams {
   prNumber: number;
 }
 
-// WRONG - Redundant undefined when ? works
-interface BadType {
-  value: string | undefined;
-}
-
 // CORRECT - Use optional property
 interface GoodType {
   value?: string;
 }
 
-// CORRECT - Use | null for API responses
-interface ApiResponse {
-  data: string | null;
-}
+// CORRECT - Use optional chaining when accessing
+const result = obj?.value ?? "default";
 ```
