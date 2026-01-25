@@ -24,6 +24,11 @@ Focus exclusively on documentation concerns. Be specific about what documentatio
 
 export type DocumentationType = "code" | "api" | "readme" | "all";
 
+export interface DocumentationReviewOptions {
+  docType?: DocumentationType;
+  customPrompt?: string;
+}
+
 /**
  * Generate a documentation-focused review prompt with PR context
  */
@@ -31,14 +36,18 @@ export function generateDocumentationReviewPrompt(
   prTitle: string,
   prDescription: string,
   fileSummary: string,
-  docType: DocumentationType = "all"
+  options: DocumentationReviewOptions = {}
 ): string {
+  const { docType = "all", customPrompt } = options;
+
+  const basePrompt = customPrompt ?? DOCUMENTATION_REVIEW_PROMPT;
+
   const focusNote =
     docType !== "all"
       ? `\n\nNote: Focus primarily on ${docType.toUpperCase()} documentation.`
       : "";
 
-  return `${DOCUMENTATION_REVIEW_PROMPT}${focusNote}
+  return `${basePrompt}${focusNote}
 
 ## Pull Request Context
 

@@ -29,6 +29,11 @@ export type PerformanceFocusArea =
   | "network"
   | "all";
 
+export interface PerformanceReviewOptions {
+  focusArea?: PerformanceFocusArea;
+  customPrompt?: string;
+}
+
 /**
  * Generate a performance-focused review prompt with PR context
  */
@@ -36,14 +41,18 @@ export function generatePerformanceReviewPrompt(
   prTitle: string,
   prDescription: string,
   fileSummary: string,
-  focusArea: PerformanceFocusArea = "all"
+  options: PerformanceReviewOptions = {}
 ): string {
+  const { focusArea = "all", customPrompt } = options;
+
+  const basePrompt = customPrompt ?? PERFORMANCE_REVIEW_PROMPT;
+
   const focusNote =
     focusArea !== "all"
       ? `\n\nNote: Focus primarily on ${focusArea.toUpperCase()} performance concerns.`
       : "";
 
-  return `${PERFORMANCE_REVIEW_PROMPT}${focusNote}
+  return `${basePrompt}${focusNote}
 
 ## Pull Request Context
 

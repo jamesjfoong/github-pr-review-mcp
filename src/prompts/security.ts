@@ -24,6 +24,11 @@ Focus exclusively on security concerns. Be thorough and specific with your findi
 
 export type SecuritySeverityLevel = "strict" | "standard" | "relaxed";
 
+export interface SecurityReviewOptions {
+  severityLevel?: SecuritySeverityLevel;
+  customPrompt?: string;
+}
+
 /**
  * Generate a security-focused review prompt with PR context
  */
@@ -31,8 +36,13 @@ export function generateSecurityReviewPrompt(
   prTitle: string,
   prDescription: string,
   fileSummary: string,
-  severityLevel: SecuritySeverityLevel = "standard"
+  options: SecurityReviewOptions = {}
 ): string {
+  const { severityLevel = "standard", customPrompt } = options;
+
+  // Use custom prompt if provided, otherwise use default
+  const basePrompt = customPrompt ?? SECURITY_REVIEW_PROMPT;
+
   const severityNote =
     severityLevel === "strict"
       ? "\n\nNote: Apply STRICT security standards. Flag any potential security concerns, even minor ones."
@@ -40,7 +50,7 @@ export function generateSecurityReviewPrompt(
         ? "\n\nNote: Apply RELAXED security standards. Focus only on critical and high severity issues."
         : "";
 
-  return `${SECURITY_REVIEW_PROMPT}${severityNote}
+  return `${basePrompt}${severityNote}
 
 ## Pull Request Context
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
 import { FastMCP } from "fastmcp";
+import { z } from "zod";
 import { CodeAnalyzer } from "./code-analyzer.js";
 import { GitHubService } from "./github-service.js";
 import { logger, withLogging } from "./logger.js";
@@ -55,10 +56,49 @@ if (!GITHUB_TOKEN) {
 const githubService = new GitHubService(GITHUB_TOKEN);
 const codeAnalyzer = new CodeAnalyzer();
 
+// Server start time for uptime calculation
+const serverStartTime = Date.now();
+
 // Initialize MCP server
 const server = new FastMCP({
   name: "GitHub PR Review",
   version: "1.0.0",
+});
+
+// Tool: Health Check
+server.addTool({
+  name: "health_check",
+  description: "Check server health and readiness status",
+  parameters: z.object({}),
+  execute: async () => {
+    const uptime = Math.floor((Date.now() - serverStartTime) / 1000);
+    const metrics = logger.getMetrics();
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              status: "healthy",
+              uptime: `${uptime}s`,
+              version: "1.0.0",
+              services: {
+                github: "connected",
+                analyzer: "ready",
+              },
+              metrics: {
+                toolCalls: metrics,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  },
 });
 
 // Tool: Get PR Reviews
@@ -646,7 +686,88 @@ async function getFileSummary(params: PRParams): Promise<string> {
     .join("\n");
 }
 
-// Prompt: Security-focused PR Review
+// Consolidated Prompt: Review PR (unified entry point)
+server.addPrompt({
+  name: "review_pr",
+  description:
+    "Unified PR review prompt. Use 'type' to select focus: general, security, performance, documentation, or improvements",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "type",
+      description: "Review type",
+      required: false,
+      enum: [
+        "general",
+        "security",
+        "performance",
+        "documentation",
+        "improvements",
+      ],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary, files] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+      githubService.getPRFiles(params),
+    ]);
+
+    const reviewType = (args.type as string) ?? "general";
+    const customPrompt = args.customPrompt as string | undefined;
+
+    switch (reviewType) {
+      case "security":
+        return generateSecurityReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+      case "performance":
+        return generatePerformanceReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+      case "documentation":
+        return generateDocumentationReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+      case "improvements":
+        return generateImprovementSuggestionsPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+      default:
+        return generateReviewPrompt(prDetails, files, customPrompt);
+    }
+  },
+});
+
+// Prompt: Security-focused PR Review (specific variant)
 server.addPrompt({
   name: "review_pr_security",
   description:
@@ -657,21 +778,18 @@ server.addPrompt({
       description: "Repository owner/organization",
       required: true,
     },
-    {
-      name: "repo",
-      description: "Repository name",
-      required: true,
-    },
-    {
-      name: "prNumber",
-      description: "Pull request number",
-      required: true,
-    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
     {
       name: "severityLevel",
       description: "Security severity level",
       required: false,
       enum: ["strict", "standard", "relaxed"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
     },
   ],
   async load(args) {
@@ -684,15 +802,15 @@ server.addPrompt({
       githubService.getPRDetails(params),
       getFileSummary(params),
     ]);
-
-    const prompt = generateSecurityReviewPrompt(
+    return generateSecurityReviewPrompt(
       prDetails.title,
       prDetails.body,
       fileSummary,
-      (args.severityLevel as SecuritySeverityLevel) ?? "standard"
+      {
+        severityLevel: args.severityLevel as SecuritySeverityLevel,
+        customPrompt: args.customPrompt as string | undefined,
+      }
     );
-
-    return prompt;
   },
 });
 
@@ -707,21 +825,18 @@ server.addPrompt({
       description: "Repository owner/organization",
       required: true,
     },
-    {
-      name: "repo",
-      description: "Repository name",
-      required: true,
-    },
-    {
-      name: "prNumber",
-      description: "Pull request number",
-      required: true,
-    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
     {
       name: "focusArea",
       description: "Performance focus area",
       required: false,
       enum: ["database", "algorithm", "memory", "network", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
     },
   ],
   async load(args) {
@@ -734,15 +849,15 @@ server.addPrompt({
       githubService.getPRDetails(params),
       getFileSummary(params),
     ]);
-
-    const prompt = generatePerformanceReviewPrompt(
+    return generatePerformanceReviewPrompt(
       prDetails.title,
       prDetails.body,
       fileSummary,
-      (args.focusArea as PerformanceFocusArea) ?? "all"
+      {
+        focusArea: args.focusArea as PerformanceFocusArea,
+        customPrompt: args.customPrompt as string | undefined,
+      }
     );
-
-    return prompt;
   },
 });
 
@@ -757,21 +872,18 @@ server.addPrompt({
       description: "Repository owner/organization",
       required: true,
     },
-    {
-      name: "repo",
-      description: "Repository name",
-      required: true,
-    },
-    {
-      name: "prNumber",
-      description: "Pull request number",
-      required: true,
-    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
     {
       name: "docType",
       description: "Documentation type to focus on",
       required: false,
       enum: ["code", "api", "readme", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
     },
   ],
   async load(args) {
@@ -784,15 +896,15 @@ server.addPrompt({
       githubService.getPRDetails(params),
       getFileSummary(params),
     ]);
-
-    const prompt = generateDocumentationReviewPrompt(
+    return generateDocumentationReviewPrompt(
       prDetails.title,
       prDetails.body,
       fileSummary,
-      (args.docType as DocumentationType) ?? "all"
+      {
+        docType: args.docType as DocumentationType,
+        customPrompt: args.customPrompt as string | undefined,
+      }
     );
-
-    return prompt;
   },
 });
 
@@ -807,21 +919,18 @@ server.addPrompt({
       description: "Repository owner/organization",
       required: true,
     },
-    {
-      name: "repo",
-      description: "Repository name",
-      required: true,
-    },
-    {
-      name: "prNumber",
-      description: "Pull request number",
-      required: true,
-    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
     {
       name: "suggestionLevel",
       description: "Filter suggestions by impact level",
       required: false,
       enum: ["high", "medium", "low", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
     },
   ],
   async load(args) {
@@ -834,15 +943,15 @@ server.addPrompt({
       githubService.getPRDetails(params),
       getFileSummary(params),
     ]);
-
-    const prompt = generateImprovementSuggestionsPrompt(
+    return generateImprovementSuggestionsPrompt(
       prDetails.title,
       prDetails.body,
       fileSummary,
-      (args.suggestionLevel as SuggestionLevel) ?? "all"
+      {
+        suggestionLevel: args.suggestionLevel as SuggestionLevel,
+        customPrompt: args.customPrompt as string | undefined,
+      }
     );
-
-    return prompt;
   },
 });
 

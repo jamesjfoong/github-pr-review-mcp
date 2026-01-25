@@ -24,6 +24,11 @@ Remember: Be encouraging and constructive. These are suggestions, not requiremen
 
 export type SuggestionLevel = "high" | "medium" | "low" | "all";
 
+export interface ImprovementSuggestionsOptions {
+  suggestionLevel?: SuggestionLevel;
+  customPrompt?: string;
+}
+
 /**
  * Generate an improvement suggestions prompt with PR context
  */
@@ -31,14 +36,18 @@ export function generateImprovementSuggestionsPrompt(
   prTitle: string,
   prDescription: string,
   fileSummary: string,
-  suggestionLevel: SuggestionLevel = "all"
+  options: ImprovementSuggestionsOptions = {}
 ): string {
+  const { suggestionLevel = "all", customPrompt } = options;
+
+  const basePrompt = customPrompt ?? IMPROVEMENT_SUGGESTIONS_PROMPT;
+
   const levelNote =
     suggestionLevel !== "all"
       ? `\n\nNote: Focus on ${suggestionLevel.toUpperCase()} impact suggestions only.`
       : "";
 
-  return `${IMPROVEMENT_SUGGESTIONS_PROMPT}${levelNote}
+  return `${basePrompt}${levelNote}
 
 ## Pull Request Context
 

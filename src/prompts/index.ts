@@ -1,9 +1,7 @@
 /**
  * Prompt module exports
- * All specialized review prompts and fragment utilities
  */
 
-// Fragments
 export {
   buildPromptFromFragments,
   CODE_QUALITY_GUIDELINES,
@@ -13,30 +11,30 @@ export {
   SECURITY_GUIDELINES,
 } from "./fragments.js";
 
-// Security prompt
 export {
-  generateSecurityReviewPrompt,
-  SECURITY_REVIEW_PROMPT,
-  type SecuritySeverityLevel,
-} from "./security.js";
+  type DocumentationReviewOptions,
+  type DocumentationType,
+  DOCUMENTATION_REVIEW_PROMPT,
+  generateDocumentationReviewPrompt,
+} from "./documentation.js";
 
-// Performance prompt
+export {
+  generateImprovementSuggestionsPrompt,
+  IMPROVEMENT_SUGGESTIONS_PROMPT,
+  type ImprovementSuggestionsOptions,
+  type SuggestionLevel,
+} from "./improvements.js";
+
 export {
   generatePerformanceReviewPrompt,
   PERFORMANCE_REVIEW_PROMPT,
   type PerformanceFocusArea,
+  type PerformanceReviewOptions,
 } from "./performance.js";
 
-// Documentation prompt
 export {
-  DOCUMENTATION_REVIEW_PROMPT,
-  type DocumentationType,
-  generateDocumentationReviewPrompt,
-} from "./documentation.js";
-
-// Improvement suggestions prompt
-export {
-  generateImprovementSuggestionsPrompt,
-  IMPROVEMENT_SUGGESTIONS_PROMPT,
-  type SuggestionLevel,
-} from "./improvements.js";
+  generateSecurityReviewPrompt,
+  SECURITY_REVIEW_PROMPT,
+  type SecurityReviewOptions,
+  type SecuritySeverityLevel,
+} from "./security.js";

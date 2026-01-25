@@ -18,11 +18,19 @@ You are an AI assistant helping develop a GitHub PR Review MCP Server built with
 
 ### File Structure
 
-- `src/index.ts` - Main MCP server entry point (register tools here)
-- `src/github-service.ts` - GitHub API abstraction layer (all GitHub API calls go here)
+- `src/index.ts` - Main MCP server entry point (register tools, resources, prompts)
+- `src/github-service.ts` - GitHub API abstraction layer (all GitHub API calls)
 - `src/code-analyzer.ts` - Code analysis engine (static analysis logic)
-- `src/review-prompt.ts` - Review prompt generation
-- `src/types.ts` - Zod schemas and TypeScript types (all tool parameters defined here)
+- `src/review-prompt.ts` - Default review prompt generation
+- `src/types.ts` - Zod schemas and TypeScript types
+- `src/logger.ts` - Structured logging utility
+- `src/sanitizer.ts` - Input sanitization utility
+- `src/prompts/` - Specialized review prompt templates
+  - `fragments.ts` - Reusable prompt fragments
+  - `security.ts` - Security-focused prompt
+  - `performance.ts` - Performance-focused prompt
+  - `documentation.ts` - Documentation-focused prompt
+  - `improvements.ts` - Improvement suggestions prompt
 - `dist/` - Compiled output (NEVER edit directly)
 
 ### Adding New MCP Tools (3-Step Process)
@@ -107,6 +115,54 @@ You are an AI assistant helping develop a GitHub PR Review MCP Server built with
 - Group: external dependencies → internal modules
 - Sort: alphabetically (case-insensitive)
 - Use: relative imports (e.g., `./github-service.js`)
+
+### Code Organization (Classes)
+
+Within classes, organize members in this order:
+
+1. **Static properties** (alphabetically)
+2. **Instance properties** (alphabetically)
+3. **Constructor**
+4. **Public methods** (alphabetically)
+5. **Private methods** (alphabetically)
+
+```typescript
+class ExampleService {
+  // 1. Static properties
+  static readonly VERSION = "1.0.0";
+
+  // 2. Instance properties
+  private client: Client;
+  private config: Config;
+
+  // 3. Constructor
+  constructor(config: Config) {
+    this.config = config;
+    this.client = new Client();
+  }
+
+  // 4. Public methods (alphabetically)
+  async addItem(item: Item): Promise<void> { }
+  async getItem(id: string): Promise<Item> { }
+  async listItems(): Promise<Item[]> { }
+
+  // 5. Private methods (alphabetically)
+  private formatItem(item: Item): FormattedItem { }
+  private validateItem(item: Item): boolean { }
+}
+```
+
+### Code Organization (Files)
+
+Within files, organize declarations in this order:
+
+1. **Imports** (external → internal, alphabetically within groups)
+2. **Constants** (alphabetically)
+3. **Types/Interfaces** (alphabetically)
+4. **Enums** (alphabetically)
+5. **Functions** (alphabetically)
+6. **Classes** (alphabetically)
+7. **Exports** (if separate from declarations)
 
 ## Critical Rules
 
