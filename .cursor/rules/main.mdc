@@ -1,0 +1,213 @@
+---
+description: "Main project rules and architecture guidelines for GitHub PR Review MCP"
+alwaysApply: true
+---
+
+# Cursor Rules for GitHub PR Review MCP
+
+You are an AI assistant helping develop a GitHub PR Review MCP Server built with TypeScript, FastMCP, and GitHub API.
+
+## Project Overview
+
+- **Type**: Model Context Protocol (MCP) server
+- **Language**: TypeScript (ES2022, strict mode)
+- **Framework**: FastMCP
+- **Purpose**: Provides GitHub PR review capabilities to LLMs in VSCode/Cursor
+
+## Core Architecture
+
+### File Structure
+
+- `src/index.ts` - Main MCP server entry point (register tools here)
+- `src/github-service.ts` - GitHub API abstraction layer (all GitHub API calls go here)
+- `src/code-analyzer.ts` - Code analysis engine (static analysis logic)
+- `src/review-prompt.ts` - Review prompt generation
+- `src/types.ts` - Zod schemas and TypeScript types (all tool parameters defined here)
+- `dist/` - Compiled output (NEVER edit directly)
+
+### Adding New MCP Tools (3-Step Process)
+
+1. **Define Schema and Type** in `src/types.ts`:
+
+   ```typescript
+   // Define schema for runtime validation
+   export const NewToolSchema = z.object({
+     param1: z.string().describe("Parameter description"),
+   });
+
+   // Define explicit type (preferred over z.infer<typeof>)
+   export interface NewToolParams {
+     param1: string;
+   }
+   ```
+
+2. **Add Service Method** in `src/github-service.ts`:
+
+   ```typescript
+   async newMethod(params: NewToolParams): Promise<ResultType> {
+     // Use this.octokit for GitHub API calls
+     // Handle errors with try-catch
+     // Return typed result
+   }
+   ```
+
+3. **Register Tool** in `src/index.ts`:
+   ```typescript
+   server.addTool({
+     name: "new_tool_name",
+     description: "Clear description",
+     parameters: NewToolSchema,
+     execute: async (params) => {
+       const result = await githubService.newMethod(params);
+       return {
+         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+       };
+     },
+   });
+   ```
+
+## Code Standards
+
+### TypeScript
+
+- **Strict mode**: Always enabled (no implicit any, strict null checks)
+- **Strong typing**: Always use explicit, strong types. Avoid `any` types (warnings acceptable for external APIs only)
+- **Use `?` for optional**: Don't use `| null | undefined`, use optional properties (`?`) instead
+- **Zod schemas**: All tool parameters MUST have Zod schemas for runtime validation
+- **Type definitions**: Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
+- **Modules**: ES2022 modules (`import`/`export`)
+- **Imports**: Use `.js` extension for compiled output (TypeScript requirement)
+
+### Code Style (Auto-enforced by Prettier/ESLint)
+
+- **Indentation**: 2 spaces
+- **Quotes**: Double quotes
+- **Semicolons**: Always required
+- **Line length**: 80 characters max
+- **Trailing commas**: ES5 style
+- **Line endings**: LF (Unix-style)
+
+### Naming Conventions
+
+- **Files**: kebab-case (`github-service.ts`)
+- **Classes**: PascalCase (`GitHubService`)
+- **Functions/Variables**: camelCase (`getPRDetails`)
+- **Constants**: UPPER_SNAKE_CASE or PascalCase for enums
+
+### ESLint Rules
+
+- Allowed: `console.error` for MCP server logging
+- Warning: `any` types (acceptable for external APIs only)
+- Warning: Non-null assertions (`!`)
+- Error: Unused variables (except `_` prefixed or ALL_CAPS)
+- Error: `var` declarations (use `const`/`let`)
+
+### Import Organization
+
+- Group: external dependencies → internal modules
+- Sort: alphabetically (case-insensitive)
+- Use: relative imports (e.g., `./github-service.js`)
+
+## Critical Rules
+
+### DO
+
+- Always use `GitHubService` class for GitHub API calls (never bypass)
+- Define Zod schemas for all tool parameters in `types.ts`
+- Use strong, explicit types - avoid `any` and excessive union types
+- Run `npm run validate` before committing (type-check + lint + format)
+- Follow conventional commits: `type(scope): description`
+- Update README.md tool table when adding new tools
+- Handle errors gracefully with try-catch blocks
+- Use `console.error` for error logging (not `console.log`)
+- Keep `CodeAnalyzer` pure (no side effects)
+- Export both schema and type from `types.ts`
+
+### DON'T
+
+- Edit files in `dist/` directory (generated from `src/`)
+- Use `any` types unnecessarily (use `unknown` if truly unknown)
+- Add redundant union types - use `?` for optional properties instead
+- Bypass service layer for GitHub API calls
+- Skip validation before committing
+- Break existing tool functionality
+- Expose sensitive information in error messages
+- Use `var` declarations
+- Leave unused variables (prefix with `_` if intentionally unused)
+
+## Common Tasks
+
+### Adding a New GitHub API Endpoint
+
+1. Add method to `GitHubService` class
+2. Use `this.octokit.*` for API calls (e.g., `this.octokit.pulls.get`)
+3. Handle pagination with `@octokit/plugin-paginate-rest` if needed
+4. Add proper TypeScript types
+5. Rate limiting is automatic via `@octokit/plugin-throttling`
+
+### Adding a New Code Analyzer
+
+1. Add analysis logic to `CodeAnalyzer` class
+2. Return structured results: `{ issues, suggestions, metrics }`
+3. Keep analyzers pure (no side effects)
+
+### Error Handling Pattern
+
+```typescript
+try {
+  const result = await this.octokit.pulls.get({
+    owner: params.owner,
+    repo: params.repo,
+    pull_number: params.prNumber,
+  });
+  return result.data;
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("Error fetching PR:", message);
+  throw new Error(`Failed to fetch PR: ${message}`);
+}
+```
+
+## Development Workflow
+
+### Before Committing
+
+1. Run `npm run validate` (type-check + lint + format)
+2. Ensure `npm run build` succeeds
+3. Test manually with real GitHub repositories
+
+### Branch Naming
+
+- Features: `feature/feature-name`
+- Fixes: `fix/bug-description`
+- Docs: `docs/update-description`
+
+### Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+- `feat(github): add support for draft PRs`
+- `fix(analyzer): resolve security pattern false positives`
+- `docs(readme): update installation instructions`
+
+## Key Dependencies
+
+- **FastMCP**: MCP server framework
+- **@octokit/rest**: GitHub API client (with pagination & throttling plugins)
+- **Zod**: Runtime type validation
+- **TypeScript**: Type safety (ES2022)
+
+## External Documentation (Context7)
+
+For up-to-date API documentation, use Context7:
+
+- `@context7 /octokit/rest.js` - Octokit JavaScript client
+- `@context7 /websites/github_en_rest` - GitHub REST API endpoints
+
+## Documentation
+
+- Full guide: `README.md`
+- Contributing: `CONTRIBUTING.md`
+- README: `README.md`
+
+When making changes, always maintain type safety, follow existing patterns, and update documentation as needed.
