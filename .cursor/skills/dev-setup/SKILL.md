@@ -55,4 +55,4 @@ Optional:
 
 ## Node.js Version
 
-Requires 20.19.0+ (or 22.12.0+, 23+)
+Requires 20.19.0+ (or 22.12.0+, 23.0.0+)

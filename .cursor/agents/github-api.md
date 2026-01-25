@@ -23,7 +23,7 @@ When adding new GitHub API endpoints, modifying existing API calls, or debugging
 ## Key Rules
 
 - Never bypass `GitHubService` - all calls must go through service layer
-- Use `this.octokit.rest.*` for API calls
+- Use `this.octokit.*` for API calls (e.g., `this.octokit.pulls.get`)
 - Handle errors gracefully with try-catch
 - Log errors with `console.error`
 - Don't expose sensitive information in error messages
@@ -33,21 +33,22 @@ When adding new GitHub API endpoints, modifying existing API calls, or debugging
 ## Examples
 
 ```typescript
-// ✅ CORRECT
+// CORRECT
 async getPRDetails(params: PRParams): Promise<PRDetails> {
   try {
-    const result = await this.octokit.rest.pulls.get({
+    const result = await this.octokit.pulls.get({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
     });
     return result.data;
   } catch (error) {
-    console.error("Error fetching PR:", error);
-    throw new Error(`Failed to fetch PR: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error fetching PR:", message);
+    throw new Error(`Failed to fetch PR: ${message}`);
   }
 }
 
-// ❌ WRONG - Bypassing service layer
-const result = await octokit.rest.pulls.get({...});
+// WRONG - Bypassing service layer
+const result = await octokit.pulls.get({...});
 ```

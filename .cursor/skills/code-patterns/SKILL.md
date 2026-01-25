@@ -16,15 +16,16 @@ description: "Common code patterns for this project. Use when implementing featu
 
 ```typescript
 try {
-  const result = await this.octokit.rest.pulls.get({
+  const result = await this.octokit.pulls.get({
     owner: params.owner,
     repo: params.repo,
     pull_number: params.prNumber,
   });
   return result.data;
 } catch (error) {
-  console.error("Error fetching PR:", error);
-  throw new Error(`Failed to fetch PR: ${error.message}`);
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("Error fetching PR:", message);
+  throw new Error(`Failed to fetch PR: ${message}`);
 }
 ```
 
@@ -79,5 +80,5 @@ All GitHub API calls must go through `GitHubService`:
 const result = await githubService.getPRDetails(params);
 
 // WRONG - bypasses service
-const result = await octokit.rest.pulls.get({...});
+const result = await octokit.pulls.get({...});
 ```

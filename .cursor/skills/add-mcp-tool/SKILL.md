@@ -27,15 +27,16 @@ export type NewToolParams = z.infer<typeof NewToolSchema>;
 ```typescript
 async newMethod(params: NewToolParams): Promise<ResultType> {
   try {
-    const result = await this.octokit.rest.pulls.get({
+    const result = await this.octokit.pulls.get({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
     });
     return result.data;
   } catch (error) {
-    console.error("Error:", error);
-    throw new Error(`Failed: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error in newMethod:", message);
+    throw new Error(`Failed to execute newMethod: ${message}`);
   }
 }
 ```

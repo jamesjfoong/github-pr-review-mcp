@@ -43,11 +43,12 @@ npm run build     # Production build
 
 ```typescript
 try {
-  const result = await this.octokit.rest.pulls.get({...});
+  const result = await this.octokit.pulls.get({...});
   return result.data;
 } catch (error) {
-  console.error("Error:", error);
-  throw new Error(`Failed: ${error.message}`);
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("Error fetching PR:", message);
+  throw new Error(`Failed to fetch PR: ${message}`);
 }
 ```
 
