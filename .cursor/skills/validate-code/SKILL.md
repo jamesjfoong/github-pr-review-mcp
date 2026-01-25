@@ -42,12 +42,12 @@ npm run format:check  # Prettier only
 
 ## Common Type Errors
 
-| Error              | Fix                                              |
-| ------------------ | ------------------------------------------------ |
-| Implicit any       | Add explicit type annotations                    |
-| Type mismatch      | Verify schema matches type                       |
-| Missing properties | Use optional `?` if needed                       |
-| Optional values    | Use `?` for optional properties, `?.` for access |
+| Error              | Fix                                       |
+| ------------------ | ----------------------------------------- |
+| Implicit any       | Add explicit type annotations             |
+| Type mismatch      | Verify schema matches type                |
+| Missing properties | Use optional `?` if needed                |
+| Optional values    | Use `?` instead of `\| null \| undefined` |
 
 ## Debugging Steps
 

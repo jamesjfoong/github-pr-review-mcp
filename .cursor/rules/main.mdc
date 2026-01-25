@@ -72,7 +72,7 @@ You are an AI assistant helping develop a GitHub PR Review MCP Server built with
 
 - **Strict mode**: Always enabled (no implicit any, strict null checks)
 - **Strong typing**: Always use explicit, strong types. Avoid `any` types (warnings acceptable for external APIs only)
-- **Use `?` for optional**: Use optional properties (`?`) and optional chaining (`?.`) when accessing values
+- **Use `?` for optional**: Don't use `| null | undefined`, use optional properties (`?`) instead
 - **Zod schemas**: All tool parameters MUST have Zod schemas for runtime validation
 - **Type definitions**: Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
 - **Modules**: ES2022 modules (`import`/`export`)

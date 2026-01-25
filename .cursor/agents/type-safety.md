@@ -12,7 +12,7 @@ description: "Ensures type safety and proper TypeScript usage. Use when adding f
 - Verify all tool parameters have Zod schemas
 - Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
 - Check for proper type definitions (no `any` unless necessary)
-- Use `?` for optional properties
+- Use `?` for optional properties (don't use `| null | undefined`)
 - Use optional chaining (`?.`) when accessing values
 - Verify all exports have proper types
 
