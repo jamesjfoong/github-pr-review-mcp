@@ -90,6 +90,40 @@ export const ReviewPRWithPromptSchema = PRParamsSchema.extend({
     ),
 });
 
+// Feedback type enum for get_pr_feedback
+export enum FeedbackType {
+  REVIEWS = "reviews",
+  COMMENTS = "comments",
+  ALL = "all",
+}
+
+// Context include enum for get_pr_context
+export enum ContextInclude {
+  DETAILS = "details",
+  FILES = "files",
+  ALL = "all",
+}
+
+// Consolidated tool: get_pr_feedback (reviews + comments)
+export const GetPRFeedbackSchema = PRParamsSchema.extend({
+  type: z
+    .nativeEnum(FeedbackType)
+    .optional()
+    .default(FeedbackType.ALL)
+    .describe(
+      "Type of feedback to retrieve: 'reviews', 'comments', or 'all' (default)"
+    ),
+});
+
+// Consolidated tool: get_pr_context (details + files)
+export const GetPRContextSchema = PRParamsSchema.extend({
+  include: z
+    .nativeEnum(ContextInclude)
+    .optional()
+    .default(ContextInclude.ALL)
+    .describe("What to include: 'details', 'files', or 'all' (default)"),
+});
+
 // Types
 export type PRParams = z.infer<typeof PRParamsSchema>;
 export type SubmitReviewParams = z.infer<typeof SubmitReviewSchema>;
@@ -102,6 +136,8 @@ export type EnsurePendingReviewParams = z.infer<
   typeof EnsurePendingReviewSchema
 >;
 export type ReviewPRWithPromptParams = z.infer<typeof ReviewPRWithPromptSchema>;
+export type GetPRFeedbackParams = z.infer<typeof GetPRFeedbackSchema>;
+export type GetPRContextParams = z.infer<typeof GetPRContextSchema>;
 
 export interface Review {
   id: number;
@@ -190,8 +226,8 @@ export interface PendingReview {
 export interface PendingReviewComment {
   id: number;
   path: string;
-  line: number | null;
-  side: DiffSide | null;
+  line: number;
+  side: DiffSide;
   body: string;
   commitId: string;
   createdAt: string;
@@ -200,15 +236,99 @@ export interface PendingReviewComment {
 
 export interface PRDetails {
   title: string;
-  body: string | null;
+  body: string;
   state: string;
-  author: string | undefined;
+  author: string;
   created_at: string;
   updated_at: string;
-  mergeable: boolean | null;
+  mergeable: boolean;
   merged: boolean;
   additions: number;
   deletions: number;
   changed_files: number;
   head_sha: string;
+}
+
+// Repository info for MCP resource
+export interface RepositoryInfo {
+  name: string;
+  fullName: string;
+  description: string;
+  owner: string;
+  defaultBranch: string;
+  private: boolean;
+  language: string;
+  topics: string[];
+  createdAt: string;
+  updatedAt: string;
+  pushedAt: string;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  license: string;
+  hasIssues: boolean;
+  hasWiki: boolean;
+  hasPages: boolean;
+  archived: boolean;
+  disabled: boolean;
+}
+
+// Repository params for MCP resource
+export interface RepoParams {
+  owner: string;
+  repo: string;
+}
+
+// Combined feedback response (reviews + comments)
+export interface PRFeedback {
+  reviews?: Review[];
+  comments?: ReviewComment[];
+  summary: {
+    totalReviews: number;
+    totalComments: number;
+    approvals: number;
+    changesRequested: number;
+  };
+}
+
+// Combined context response (details + files)
+export interface PRContext {
+  details?: PRDetails;
+  files?: CodeFile[];
+  summary: {
+    title?: string;
+    state?: string;
+    totalFiles: number;
+    totalAdditions: number;
+    totalDeletions: number;
+  };
+}
+
+// Log levels
+export enum LogLevel {
+  DEBUG = "debug",
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
+}
+
+// Structured log entry
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  tool: string;
+  action: string;
+  params: Record<string, unknown>;
+  duration?: number;
+  success: boolean;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
+// Audit entry for state-changing operations
+export interface AuditEntry extends LogEntry {
+  operation: "create" | "update" | "delete";
+  resource: string;
+  resourceId?: string | number;
+  changes?: Record<string, unknown>;
 }
