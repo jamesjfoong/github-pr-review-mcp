@@ -52,9 +52,8 @@ if (!GITHUB_TOKEN) {
   process.exit(1);
 }
 
-// Initialize services
+// Initialize GitHub service
 const githubService = new GitHubService(GITHUB_TOKEN);
-const codeAnalyzer = new CodeAnalyzer();
 
 // Server start time for uptime calculation
 const serverStartTime = Date.now();
@@ -64,6 +63,9 @@ const server = new FastMCP({
   name: "GitHub PR Review",
   version: "1.0.0",
 });
+
+// Initialize code analyzer (requires server for MCP sampling)
+const codeAnalyzer = new CodeAnalyzer(server);
 
 // Tool: Health Check
 server.addTool({
@@ -137,14 +139,25 @@ server.addTool({
   },
 });
 
-// Tool: Analyze PR Code
+// Tool: Analyze PR Code (AI-powered via MCP sampling)
 server.addTool({
   name: "analyze_pr_code",
-  description: "Analyze code changes in a PR for issues and suggestions",
+  description:
+    "Analyze code changes in a PR using AI for security, performance, and quality issues",
   parameters: PRParamsSchema,
   execute: async (params: PRParams) => {
-    const files = await githubService.getPRFiles(params);
-    const analysis = codeAnalyzer.analyze(files);
+    // Fetch files and PR details for context
+    const [files, prDetails] = await Promise.all([
+      githubService.getPRFiles(params),
+      githubService.getPRDetails(params),
+    ]);
+
+    // Run AI-powered analysis
+    const analysis = await codeAnalyzer.analyze(
+      files,
+      prDetails.title,
+      prDetails.body ?? undefined
+    );
 
     return {
       content: [

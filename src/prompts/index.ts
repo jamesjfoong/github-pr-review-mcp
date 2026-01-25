@@ -3,6 +3,12 @@
  */
 
 export {
+  type AnalysisPromptParams,
+  CODE_ANALYSIS_SYSTEM_PROMPT,
+  generateAnalysisUserMessage,
+} from "./analysis.js";
+
+export {
   buildPromptFromFragments,
   CODE_QUALITY_GUIDELINES,
   DOCUMENTATION_GUIDELINES,
