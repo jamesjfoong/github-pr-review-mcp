@@ -33,5 +33,5 @@ When adding features, changing behavior, or improving documentation.
 - `README.md` - Main project documentation
 - `CHANGELOG.md` - Version history
 - `CONTRIBUTING.md` - Contribution guidelines
-- `docs/AI_CODE_EDITOR_GUIDE.md` - AI assistant guide
+- `docs/` - Additional documentation (deployment, security)
 - `.cursor/rules/main.mdc` - Cursor rules documentation

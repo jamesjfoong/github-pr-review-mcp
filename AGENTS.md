@@ -16,7 +16,7 @@ MCP server providing GitHub PR review capabilities. Built with TypeScript, FastM
 - **All GitHub API calls** go through `GitHubService`
 - **All tool parameters** need Zod schemas in `types.ts`
 - **Strong typing** - avoid `any`, use explicit `interface` or `type` definitions
-- **No excessive unions** - use `?` instead of `| null | undefined`
+- **No excessive unions** - prefer `?` over `| undefined`; allow `| null` for API values
 - **Run `npm run validate`** before committing
 
 ## Adding Tools (3 Steps)
@@ -55,4 +55,4 @@ try {
 ## Documentation
 
 - `README.md` - Update tool table when adding tools
-- `docs/AI_CODE_EDITOR_GUIDE.md` - Full guidelines
+- `README.md` - Full project documentation

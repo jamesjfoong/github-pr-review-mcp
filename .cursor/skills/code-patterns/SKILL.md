@@ -49,8 +49,15 @@ export interface PRParams {
   prNumber: number;
 }
 
-// WRONG - don't use excessive unions
-type BadType = string | null | undefined;
+// WRONG - redundant undefined
+interface BadType {
+  value: string | undefined;
+}
+
+// OK - use | null for API responses
+interface ApiType {
+  data: string | null;
+}
 
 // CORRECT - use optional
 type GoodType = { value?: string };
