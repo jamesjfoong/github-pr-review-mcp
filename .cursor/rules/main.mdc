@@ -192,6 +192,13 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 - **Zod**: Runtime type validation
 - **TypeScript**: Type safety (ES2022)
 
+## External Documentation (Context7)
+
+For up-to-date API documentation, use Context7:
+
+- `@context7 /octokit/rest.js` - Octokit JavaScript client
+- `@context7 /websites/github_en_rest` - GitHub REST API endpoints
+
 ## Documentation
 
 - Full guide: `docs/AI_CODE_EDITOR_GUIDE.md`

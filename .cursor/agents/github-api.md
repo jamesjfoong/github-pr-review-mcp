@@ -7,6 +7,13 @@ description: "Handles all GitHub API interactions. Use when adding API endpoints
 
 **Purpose**: Handles all GitHub API interactions and ensures proper service layer usage.
 
+## Documentation Reference
+
+When working with GitHub API, use Context7 to fetch up-to-date documentation:
+
+- **Octokit client**: `@context7 /octokit/rest.js` - JavaScript client API
+- **GitHub REST API**: `@context7 /websites/github_en_rest` - Full endpoint docs
+
 ## Responsibilities
 
 - All GitHub API calls go through `GitHubService` class
