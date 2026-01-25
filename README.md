@@ -154,6 +154,16 @@ The `analyze_pr_code` tool automatically detects:
 
 ## Development
 
+> **AI Code Editors**: If you're using Cursor, GitHub Copilot, or other AI code editors, this repository includes automatic configuration files:
+>
+> - **`.cursor/rules/`** - Project rules (always applied)
+> - **`.cursor/agents/`** - Custom subagents for specialized tasks
+> - **`.cursor/skills/`** - Agent skills for procedural workflows
+> - **`.github/copilot-instructions.md`** - GitHub Copilot instructions
+> - **`AGENTS.md`** - General AI agent instructions
+>
+> For comprehensive guidelines, see the [AI Code Editor Guide](docs/AI_CODE_EDITOR_GUIDE.md).
+
 ### Project Structure
 
 ```
