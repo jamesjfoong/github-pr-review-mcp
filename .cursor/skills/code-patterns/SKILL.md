@@ -36,13 +36,18 @@ try {
 ## Type-Safe Code
 
 ```typescript
-// CORRECT
+// CORRECT - Explicit type definition
 export const PRParamsSchema = z.object({
   owner: z.string(),
   repo: z.string(),
   prNumber: z.number(),
 });
-export type PRParams = z.infer<typeof PRParamsSchema>;
+
+export interface PRParams {
+  owner: string;
+  repo: string;
+  prNumber: number;
+}
 
 // WRONG - don't use excessive unions
 type BadType = string | null | undefined;

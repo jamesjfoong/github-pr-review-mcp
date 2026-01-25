@@ -36,7 +36,12 @@ export const NewToolSchema = z.object({
   owner: z.string().describe("Repository owner"),
   repo: z.string().describe("Repository name"),
 });
-export type NewToolParams = z.infer<typeof NewToolSchema>;
+// Explicit type (preferred over z.infer<typeof>)
+export interface NewToolParams {
+  owner: string;
+  repo: string;
+  prNumber: number;
+}
 ```
 
 ### Step 2: Add Service Method (`src/github-service.ts`)

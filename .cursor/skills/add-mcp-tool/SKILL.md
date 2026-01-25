@@ -14,12 +14,19 @@ When adding a new GitHub PR review capability to the MCP server.
 ### 1. Define Schema (`src/types.ts`)
 
 ```typescript
+// Schema for runtime validation
 export const NewToolSchema = z.object({
   owner: z.string().describe("Repository owner/organization"),
   repo: z.string().describe("Repository name"),
   prNumber: z.number().describe("Pull request number"),
 });
-export type NewToolParams = z.infer<typeof NewToolSchema>;
+
+// Explicit type definition (preferred)
+export interface NewToolParams {
+  owner: string;
+  repo: string;
+  prNumber: number;
+}
 ```
 
 ### 2. Add Service Method (`src/github-service.ts`)

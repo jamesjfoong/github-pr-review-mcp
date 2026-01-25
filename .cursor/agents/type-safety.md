@@ -10,7 +10,7 @@ description: "Ensures type safety and proper TypeScript usage. Use when adding f
 ## Responsibilities
 
 - Verify all tool parameters have Zod schemas
-- Ensure types are inferred from schemas using `z.infer<typeof Schema>`
+- Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
 - Check for proper type definitions (no `any` unless necessary)
 - Validate no excessive union types like `| null | undefined`
 - Ensure optional properties use `?` instead of unions
@@ -23,7 +23,7 @@ When adding new features, modifying types, or fixing type errors.
 ## Key Rules
 
 - All parameters must have Zod schemas in `src/types.ts`
-- Use `z.infer<typeof Schema>` for type inference
+- Use explicit type definitions alongside Zod schemas
 - Avoid `any` - use `unknown` if type is truly unknown
 - Use optional properties (`?`) instead of `| null | undefined`
 - Strong typing: Always use explicit, strong types
@@ -32,19 +32,24 @@ When adding new features, modifying types, or fixing type errors.
 ## Examples
 
 ```typescript
-// ✅ CORRECT
+// CORRECT - Explicit type definition with Zod schema
 export const PRParamsSchema = z.object({
   owner: z.string(),
   repo: z.string(),
   prNumber: z.number(),
 });
-export type PRParams = z.infer<typeof PRParamsSchema>;
 
-// ❌ WRONG - Excessive union
+export interface PRParams {
+  owner: string;
+  repo: string;
+  prNumber: number;
+}
+
+// WRONG - Excessive union
 type BadType = string | null | undefined;
 
-// ✅ CORRECT - Use optional property
-type GoodType = {
+// CORRECT - Use optional property
+interface GoodType {
   value?: string;
-};
+}
 ```

@@ -27,13 +27,18 @@ You are an AI assistant helping develop a GitHub PR Review MCP Server built with
 
 ### Adding New MCP Tools (3-Step Process)
 
-1. **Define Schema** in `src/types.ts`:
+1. **Define Schema and Type** in `src/types.ts`:
 
    ```typescript
+   // Define schema for runtime validation
    export const NewToolSchema = z.object({
      param1: z.string().describe("Parameter description"),
    });
-   export type NewToolParams = z.infer<typeof NewToolSchema>;
+
+   // Define explicit type (preferred over z.infer<typeof>)
+   export interface NewToolParams {
+     param1: string;
+   }
    ```
 
 2. **Add Service Method** in `src/github-service.ts`:
@@ -69,7 +74,7 @@ You are an AI assistant helping develop a GitHub PR Review MCP Server built with
 - **Strong typing**: Always use explicit, strong types. Avoid `any` types (warnings acceptable for external APIs only)
 - **Avoid excessive unions**: Do NOT use `| null | undefined` - TypeScript strict mode handles nullability. Use proper types or optional properties (`?`) instead
 - **Zod schemas**: All tool parameters MUST have Zod schemas for runtime validation
-- **Type inference**: Use `z.infer<typeof Schema>` to derive types from Zod schemas
+- **Type definitions**: Prefer explicit `interface` or `type` definitions over `z.infer<typeof Schema>`
 - **Modules**: ES2022 modules (`import`/`export`)
 - **Imports**: Use `.js` extension for compiled output (TypeScript requirement)
 

@@ -15,7 +15,7 @@ MCP server providing GitHub PR review capabilities. Built with TypeScript, FastM
 
 - **All GitHub API calls** go through `GitHubService`
 - **All tool parameters** need Zod schemas in `types.ts`
-- **Strong typing** - avoid `any`, use `z.infer<typeof Schema>`
+- **Strong typing** - avoid `any`, use explicit `interface` or `type` definitions
 - **No excessive unions** - use `?` instead of `| null | undefined`
 - **Run `npm run validate`** before committing
 
