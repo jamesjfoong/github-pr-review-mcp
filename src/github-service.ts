@@ -24,6 +24,7 @@ import {
   PRState,
   type RepoParams,
   type RepositoryInfo,
+  type RespondToFeedbackParams,
   type Review,
   type ReviewComment,
   ReviewState,
@@ -95,7 +96,7 @@ export class GitHubService {
             id: review.id,
             state: this.mapReviewState(review.state),
             body: review.body ?? "",
-            author: review.user?.login ?? DEFAULT_AUTHOR,
+            user: review.user?.login ?? DEFAULT_AUTHOR,
             submittedAt: review.submitted_at ?? "",
             comments: comments.map((comment) => this.mapReviewComment(comment)),
           };
@@ -131,10 +132,12 @@ export class GitHubService {
     return {
       id: comment.id,
       body: comment.body ?? "",
-      path: comment.path ?? undefined,
-      line: comment.line ?? undefined,
-      author: comment.user?.login ?? DEFAULT_AUTHOR,
+      path: comment.path ?? "",
+      line: comment.line ?? 0,
+      side: this.mapDiffSide(comment.side ?? ""),
+      user: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
+      commitId: comment.commit_id ?? "",
     };
   }
 
@@ -151,8 +154,12 @@ export class GitHubService {
     return comments.map((comment) => ({
       id: comment.id,
       body: comment.body ?? "",
-      author: comment.user?.login ?? DEFAULT_AUTHOR,
+      path: "",
+      line: 0,
+      side: DiffSide.RIGHT,
+      user: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
+      commitId: "",
     }));
   }
 
@@ -241,6 +248,39 @@ export class GitHubService {
     }
   }
 
+  async respondToFeedback(params: RespondToFeedbackParams): Promise<void> {
+    const message = params.body ?? `Fixed in ${params.commitId}`;
+    const failures: string[] = [];
+
+    // Process comments in parallel (but limited concurrency could be better if many)
+    await Promise.all(
+      params.commentIds.map(async (commentId) => {
+        try {
+          // Attempt to reply to a review comment (diff comment)
+          await this.octokit.pulls.createReplyForReviewComment({
+            owner: params.owner,
+            repo: params.repo,
+            pull_number: params.prNumber,
+            comment_id: commentId,
+            body: message,
+          });
+        } catch (error) {
+          const err = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `Failed to reply to comment ${commentId}: ${err}. It might not be a scalable review comment.`
+          );
+          failures.push(`ID ${commentId}: ${err}`);
+        }
+      })
+    );
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to reply to ${failures.length} comments. Details: ${failures.join("; ")}`
+      );
+    }
+  }
+
   async updatePR(params: UpdatePRParams): Promise<void> {
     const updateData: {
       owner: string;
@@ -271,13 +311,13 @@ export class GitHubService {
 
     const data = response.data;
     return {
-      title: data.title,
-      body: data.body,
+      title: data.title ?? "",
+      body: data.body ?? "",
       state: data.state,
-      author: data.user?.login,
+      author: data.user?.login ?? DEFAULT_AUTHOR,
       created_at: data.created_at,
       updated_at: data.updated_at,
-      mergeable: data.mergeable,
+      mergeable: data.mergeable ?? false,
       merged: data.merged,
       additions: data.additions,
       deletions: data.deletions,
@@ -728,7 +768,7 @@ export class GitHubService {
     return {
       id: comment.id,
       path: comment.path ?? "",
-      line: comment.line ?? null,
+      line: comment.line ?? undefined,
       side: this.mapDiffSide(comment.side ?? null),
       body: comment.body ?? "",
       commitId: comment.commit_id ?? "",
@@ -739,8 +779,7 @@ export class GitHubService {
 
   private mapDiffSide(side: string): DiffSide {
     if (side === "LEFT") return DiffSide.LEFT;
-    if (side === "RIGHT") return DiffSide.RIGHT;
-    return null;
+    return DiffSide.RIGHT; // Default to RIGHT if null or unknown
   }
 
   /**
@@ -759,11 +798,11 @@ export class GitHubService {
       return {
         name: data.name,
         fullName: data.full_name,
-        description: data.description,
+        description: data.description ?? "",
         owner: data.owner.login,
         defaultBranch: data.default_branch,
         private: data.private,
-        language: data.language,
+        language: data.language ?? "",
         topics: data.topics ?? [],
         createdAt: data.created_at,
         updatedAt: data.updated_at,
@@ -771,7 +810,7 @@ export class GitHubService {
         stars: data.stargazers_count,
         forks: data.forks_count,
         openIssues: data.open_issues_count,
-        license: data.license?.spdx_id ?? null,
+        license: data.license?.spdx_id ?? "NONE",
         hasIssues: data.has_issues,
         hasWiki: data.has_wiki,
         hasPages: data.has_pages,

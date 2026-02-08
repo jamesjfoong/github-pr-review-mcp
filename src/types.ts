@@ -124,6 +124,17 @@ export const GetPRContextSchema = PRParamsSchema.extend({
     .describe("What to include: 'details', 'files', or 'all' (default)"),
 });
 
+export const RespondToFeedbackSchema = PRParamsSchema.extend({
+  commentIds: z
+    .array(z.number())
+    .describe("List of review comment IDs to reply to"),
+  commitId: z.string().describe("SHA of the commit that fixes the issues"),
+  body: z
+    .string()
+    .optional()
+    .describe("Response message (default: 'Fixed in <commitId>')"),
+});
+
 // Types
 export type PRParams = z.infer<typeof PRParamsSchema>;
 export type SubmitReviewParams = z.infer<typeof SubmitReviewSchema>;
@@ -138,12 +149,13 @@ export type EnsurePendingReviewParams = z.infer<
 export type ReviewPRWithPromptParams = z.infer<typeof ReviewPRWithPromptSchema>;
 export type GetPRFeedbackParams = z.infer<typeof GetPRFeedbackSchema>;
 export type GetPRContextParams = z.infer<typeof GetPRContextSchema>;
+export type RespondToFeedbackParams = z.infer<typeof RespondToFeedbackSchema>;
 
 export interface Review {
   id: number;
   state: ReviewState;
   body: string;
-  author: string;
+  user: string;
   submittedAt: string;
   comments: ReviewComment[];
 }
@@ -151,10 +163,12 @@ export interface Review {
 export interface ReviewComment {
   id: number;
   body: string;
-  path?: string;
-  line?: number;
-  author: string;
+  path: string;
+  line: number;
+  side: DiffSide;
+  user: string;
   createdAt: string;
+  commitId: string;
 }
 
 export interface CodeFile {

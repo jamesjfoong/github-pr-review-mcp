@@ -12,6 +12,7 @@ import type {
   GetPRContextParams,
   GetPRFeedbackParams,
   PRParams,
+  RespondToFeedbackParams,
   ReviewPRWithPromptParams,
   SubmitReviewParams,
   UpdatePRParams,
@@ -25,6 +26,7 @@ import {
   GetPRContextSchema,
   GetPRFeedbackSchema,
   PRParamsSchema,
+  RespondToFeedbackSchema,
   ReviewPRWithPromptSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
@@ -555,6 +557,47 @@ server.addTool({
   },
 });
 
+// Consolidated Tool: Respond to Feedback (reply to comments)
+server.addTool({
+  name: "respond_to_feedback",
+  description:
+    "Reply to multiple PR review comments with a status update (e.g., 'Fixed in <commit_sha>'). Useful for batch resolving feedback after pushing changes.",
+  parameters: RespondToFeedbackSchema,
+  execute: async (params: RespondToFeedbackParams) => {
+    return withLogging("respond_to_feedback", "create", params, async () => {
+      const sanitized = sanitizePRParams(params);
+
+      // Audit log for state-changing operation
+      logger.logAudit(
+        "respond_to_feedback",
+        "create",
+        "comment_reply",
+        params,
+        {
+          metadata: {
+            commentCount: params.commentIds.length,
+            commitId: params.commitId,
+          },
+        }
+      );
+
+      await githubService.respondToFeedback({
+        ...params,
+        ...sanitized,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `✅ Replied to ${params.commentIds.length} comments`,
+          },
+        ],
+      };
+    });
+  },
+});
+
 // ============================================================
 // MCP RESOURCES - Read-only context data for LLMs
 // ============================================================
@@ -745,38 +788,45 @@ server.addPrompt({
     const reviewType = (args.type as string) ?? "general";
     const customPrompt = args.customPrompt as string | undefined;
 
+    let rawPrompt: string;
     switch (reviewType) {
       case "security":
-        return generateSecurityReviewPrompt(
+        rawPrompt = generateSecurityReviewPrompt(
           prDetails.title,
           prDetails.body,
           fileSummary,
           { customPrompt }
         );
+        break;
       case "performance":
-        return generatePerformanceReviewPrompt(
+        rawPrompt = generatePerformanceReviewPrompt(
           prDetails.title,
           prDetails.body,
           fileSummary,
           { customPrompt }
         );
+        break;
       case "documentation":
-        return generateDocumentationReviewPrompt(
+        rawPrompt = generateDocumentationReviewPrompt(
           prDetails.title,
           prDetails.body,
           fileSummary,
           { customPrompt }
         );
+        break;
       case "improvements":
-        return generateImprovementSuggestionsPrompt(
+        rawPrompt = generateImprovementSuggestionsPrompt(
           prDetails.title,
           prDetails.body,
           fileSummary,
           { customPrompt }
         );
+        break;
       default:
-        return generateReviewPrompt(prDetails, files, customPrompt);
+        rawPrompt = generateReviewPrompt(prDetails, files, customPrompt);
     }
+
+    return rawPrompt;
   },
 });
 
