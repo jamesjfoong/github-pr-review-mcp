@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
 import { FastMCP } from "fastmcp";
+import { z } from "zod";
 import { CodeAnalyzer } from "./code-analyzer.js";
 import { GitHubService } from "./github-service.js";
+import { logger, withLogging } from "./logger.js";
+import { sanitizeBody, sanitizePRParams } from "./sanitizer.js";
 import type {
   AddCommentParams,
   EnsurePendingReviewParams,
+  GetPRContextParams,
+  GetPRFeedbackParams,
   PRParams,
+  RespondToFeedbackParams,
   ReviewPRWithPromptParams,
   SubmitReviewParams,
   UpdatePRParams,
@@ -14,13 +20,30 @@ import type {
 } from "./types.js";
 import {
   AddCommentSchema,
+  ContextInclude,
   EnsurePendingReviewSchema,
+  FeedbackType,
+  GetPRContextSchema,
+  GetPRFeedbackSchema,
   PRParamsSchema,
+  RespondToFeedbackSchema,
   ReviewPRWithPromptSchema,
   SubmitReviewSchema,
   UpdatePRSchema,
   ValidateCommentTargetSchema,
 } from "./types.js";
+import {
+  generateDocumentationReviewPrompt,
+  generateImprovementSuggestionsPrompt,
+  generatePerformanceReviewPrompt,
+  generateSecurityReviewPrompt,
+} from "./prompts/index.js";
+import type {
+  DocumentationType,
+  PerformanceFocusArea,
+  SecuritySeverityLevel,
+  SuggestionLevel,
+} from "./prompts/index.js";
 import { formatFilesForReview, generateReviewPrompt } from "./review-prompt.js";
 
 dotenv.config();
@@ -31,14 +54,55 @@ if (!GITHUB_TOKEN) {
   process.exit(1);
 }
 
-// Initialize services
+// Initialize GitHub service
 const githubService = new GitHubService(GITHUB_TOKEN);
-const codeAnalyzer = new CodeAnalyzer();
+
+// Server start time for uptime calculation
+const serverStartTime = Date.now();
 
 // Initialize MCP server
 const server = new FastMCP({
   name: "GitHub PR Review",
   version: "1.0.0",
+});
+
+// Initialize code analyzer (requires server for MCP sampling)
+const codeAnalyzer = new CodeAnalyzer(server);
+
+// Tool: Health Check
+server.addTool({
+  name: "health_check",
+  description: "Check server health and readiness status",
+  parameters: z.object({}),
+  execute: async () => {
+    const uptime = Math.floor((Date.now() - serverStartTime) / 1000);
+    const metrics = logger.getMetrics();
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              status: "healthy",
+              uptime: `${uptime}s`,
+              version: "1.0.0",
+              services: {
+                github: "connected",
+                analyzer: "ready",
+              },
+              metrics: {
+                toolCalls: metrics,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  },
 });
 
 // Tool: Get PR Reviews
@@ -77,14 +141,25 @@ server.addTool({
   },
 });
 
-// Tool: Analyze PR Code
+// Tool: Analyze PR Code (AI-powered via MCP sampling)
 server.addTool({
   name: "analyze_pr_code",
-  description: "Analyze code changes in a PR for issues and suggestions",
+  description:
+    "Analyze code changes in a PR using AI for security, performance, and quality issues",
   parameters: PRParamsSchema,
   execute: async (params: PRParams) => {
-    const files = await githubService.getPRFiles(params);
-    const analysis = codeAnalyzer.analyze(files);
+    // Fetch files and PR details for context
+    const [files, prDetails] = await Promise.all([
+      githubService.getPRFiles(params),
+      githubService.getPRDetails(params),
+    ]);
+
+    // Run AI-powered analysis
+    const analysis = await codeAnalyzer.analyze(
+      files,
+      prDetails.title,
+      prDetails.body ?? undefined
+    );
 
     return {
       content: [
@@ -115,59 +190,139 @@ server.addTool({
   },
 });
 
-// Tool: Submit PR Review
+// Tool: Submit PR Review (with audit logging)
 server.addTool({
   name: "submit_pr_review",
   description: "Submit a review to a pull request",
   parameters: SubmitReviewSchema,
   execute: async (params: SubmitReviewParams) => {
-    await githubService.submitReview(params);
-    return {
-      content: [
-        {
-          type: "text",
-          text: "✅ Review submitted successfully",
+    return withLogging("submit_pr_review", "submit", params, async () => {
+      const sanitized = sanitizePRParams(params);
+      const bodyResult = sanitizeBody(params.body);
+
+      if (sanitized.warnings.length > 0 || bodyResult.warnings.length > 0) {
+        logger.warn("submit_pr_review", "Input sanitization warnings", {
+          warnings: [...sanitized.warnings, ...bodyResult.warnings],
+        });
+      }
+
+      // Audit log for state-changing operation
+      logger.logAudit("submit_pr_review", "create", "review", params, {
+        metadata: {
+          event: params.event,
+          commentCount: params.comments?.length,
         },
-      ],
-    };
+      });
+
+      await githubService.submitReview({
+        ...params,
+        owner: sanitized.owner,
+        repo: sanitized.repo,
+        prNumber: sanitized.prNumber,
+        body: bodyResult.sanitized,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: "✅ Review submitted successfully",
+          },
+        ],
+      };
+    });
   },
 });
 
-// Tool: Add Comment to PR
+// Tool: Add Comment to PR (with audit logging)
 server.addTool({
   name: "add_pr_comment",
   description: "Add a comment to a PR (general or line-specific)",
   parameters: AddCommentSchema,
   execute: async (params: AddCommentParams) => {
-    await githubService.addComment(params);
-    const commentType =
-      params.path && params.line ? "line-specific comment" : "general comment";
-    return {
-      content: [
-        {
-          type: "text",
-          text: `✅ ${commentType} added successfully`,
-        },
-      ],
-    };
+    return withLogging("add_pr_comment", "create", params, async () => {
+      const sanitized = sanitizePRParams(params);
+      const bodyResult = sanitizeBody(params.body);
+
+      if (sanitized.warnings.length > 0 || bodyResult.warnings.length > 0) {
+        logger.warn("add_pr_comment", "Input sanitization warnings", {
+          warnings: [...sanitized.warnings, ...bodyResult.warnings],
+        });
+      }
+
+      const commentType =
+        params.path && params.line ? "line-specific" : "general";
+
+      // Audit log for state-changing operation
+      logger.logAudit("add_pr_comment", "create", "comment", params, {
+        metadata: { commentType, path: params.path, line: params.line },
+      });
+
+      await githubService.addComment({
+        ...params,
+        owner: sanitized.owner,
+        repo: sanitized.repo,
+        prNumber: sanitized.prNumber,
+        body: bodyResult.sanitized,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `✅ ${commentType} comment added successfully`,
+          },
+        ],
+      };
+    });
   },
 });
 
-// Tool: Update PR
+// Tool: Update PR (with audit logging)
 server.addTool({
   name: "update_pr",
   description: "Update PR title, description, or state",
   parameters: UpdatePRSchema,
   execute: async (params: UpdatePRParams) => {
-    await githubService.updatePR(params);
-    return {
-      content: [
-        {
-          type: "text",
-          text: "✅ PR updated successfully",
-        },
-      ],
-    };
+    return withLogging("update_pr", "update", params, async () => {
+      const sanitized = sanitizePRParams(params);
+      const changes: Record<string, unknown> = {};
+
+      if (params.title) changes.title = params.title;
+      if (params.body) {
+        const bodyResult = sanitizeBody(params.body);
+        changes.body = bodyResult.sanitized;
+        if (bodyResult.warnings.length > 0) {
+          logger.warn("update_pr", "Body sanitization warnings", {
+            warnings: bodyResult.warnings,
+          });
+        }
+      }
+      if (params.state) changes.state = params.state;
+
+      // Audit log for state-changing operation
+      logger.logAudit("update_pr", "update", "pull_request", params, {
+        resourceId: params.prNumber,
+        changes,
+      });
+
+      await githubService.updatePR({
+        ...params,
+        owner: sanitized.owner,
+        repo: sanitized.repo,
+        prNumber: sanitized.prNumber,
+        body: changes.body as string | undefined,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: "✅ PR updated successfully",
+          },
+        ],
+      };
+    });
   },
 });
 
@@ -335,6 +490,531 @@ server.addTool({
         },
       ],
     };
+  },
+});
+
+// Consolidated Tool: Get PR Feedback (reviews + comments)
+server.addTool({
+  name: "get_pr_feedback",
+  description:
+    "Get PR feedback including reviews and/or comments. Use 'type' to filter: 'reviews' (formal reviews only), 'comments' (general comments only), or 'all' (both). Returns summary with approval counts.",
+  parameters: GetPRFeedbackSchema,
+  execute: async (params: GetPRFeedbackParams) => {
+    return withLogging("get_pr_feedback", "fetch", params, async () => {
+      const sanitized = sanitizePRParams(params);
+      if (sanitized.warnings.length > 0) {
+        logger.warn("get_pr_feedback", "Input sanitization warnings", {
+          warnings: sanitized.warnings,
+        });
+      }
+
+      const feedback = await githubService.getPRFeedback({
+        ...sanitized,
+        type: params.type ?? FeedbackType.ALL,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(feedback, null, 2),
+          },
+        ],
+      };
+    });
+  },
+});
+
+// Consolidated Tool: Get PR Context (details + files)
+server.addTool({
+  name: "get_pr_context",
+  description:
+    "Get PR context including details and/or files. Use 'include' to filter: 'details' (PR metadata only), 'files' (changed files only), or 'all' (both). Returns summary with change statistics.",
+  parameters: GetPRContextSchema,
+  execute: async (params: GetPRContextParams) => {
+    return withLogging("get_pr_context", "fetch", params, async () => {
+      const sanitized = sanitizePRParams(params);
+      if (sanitized.warnings.length > 0) {
+        logger.warn("get_pr_context", "Input sanitization warnings", {
+          warnings: sanitized.warnings,
+        });
+      }
+
+      const context = await githubService.getPRContext({
+        ...sanitized,
+        include: params.include ?? ContextInclude.ALL,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(context, null, 2),
+          },
+        ],
+      };
+    });
+  },
+});
+
+// Consolidated Tool: Respond to Feedback (reply to comments)
+server.addTool({
+  name: "respond_to_feedback",
+  description:
+    "Reply to multiple PR review comments with a status update (e.g., 'Fixed in <commit_sha>'). Useful for batch resolving feedback after pushing changes.",
+  parameters: RespondToFeedbackSchema,
+  execute: async (params: RespondToFeedbackParams) => {
+    return withLogging("respond_to_feedback", "create", params, async () => {
+      const sanitized = sanitizePRParams(params);
+
+      // Audit log for state-changing operation
+      logger.logAudit(
+        "respond_to_feedback",
+        "create",
+        "comment_reply",
+        params,
+        {
+          metadata: {
+            commentCount: params.commentIds.length,
+            commitId: params.commitId,
+          },
+        }
+      );
+
+      await githubService.respondToFeedback({
+        ...params,
+        ...sanitized,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `✅ Replied to ${params.commentIds.length} comments`,
+          },
+        ],
+      };
+    });
+  },
+});
+
+// ============================================================
+// MCP RESOURCES - Read-only context data for LLMs
+// ============================================================
+
+// Resource: PR Metadata
+server.addResourceTemplate({
+  uriTemplate: "pr://{owner}/{repo}/{prNumber}",
+  name: "PR Metadata",
+  description:
+    "Pull request details including title, description, state, author, and metrics",
+  mimeType: "application/json",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    {
+      name: "repo",
+      description: "Repository name",
+      required: true,
+    },
+    {
+      name: "prNumber",
+      description: "Pull request number",
+      required: true,
+    },
+  ],
+  async load({ owner, repo, prNumber }) {
+    const params = { owner, repo, prNumber: parseInt(prNumber, 10) };
+    const details = await githubService.getPRDetails(params);
+    return {
+      text: JSON.stringify(details, null, 2),
+    };
+  },
+});
+
+// Resource: PR Files
+server.addResourceTemplate({
+  uriTemplate: "pr://{owner}/{repo}/{prNumber}/files",
+  name: "PR Files",
+  description:
+    "List of changed files in the pull request with additions, deletions, and patches",
+  mimeType: "application/json",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    {
+      name: "repo",
+      description: "Repository name",
+      required: true,
+    },
+    {
+      name: "prNumber",
+      description: "Pull request number",
+      required: true,
+    },
+  ],
+  async load({ owner, repo, prNumber }) {
+    const params = { owner, repo, prNumber: parseInt(prNumber, 10) };
+    const files = await githubService.getPRFiles(params);
+    return {
+      text: JSON.stringify(files, null, 2),
+    };
+  },
+});
+
+// Resource: PR Reviews
+server.addResourceTemplate({
+  uriTemplate: "pr://{owner}/{repo}/{prNumber}/reviews",
+  name: "PR Reviews",
+  description: "Historical reviews and comments on the pull request",
+  mimeType: "application/json",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    {
+      name: "repo",
+      description: "Repository name",
+      required: true,
+    },
+    {
+      name: "prNumber",
+      description: "Pull request number",
+      required: true,
+    },
+  ],
+  async load({ owner, repo, prNumber }) {
+    const params = { owner, repo, prNumber: parseInt(prNumber, 10) };
+    const reviews = await githubService.getPRReviews(params);
+    return {
+      text: JSON.stringify(reviews, null, 2),
+    };
+  },
+});
+
+// Resource: Repository Info
+server.addResourceTemplate({
+  uriTemplate: "repo://{owner}/{repo}",
+  name: "Repository Info",
+  description:
+    "Repository metadata including default branch, permissions, and settings",
+  mimeType: "application/json",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    {
+      name: "repo",
+      description: "Repository name",
+      required: true,
+    },
+  ],
+  async load({ owner, repo }) {
+    const info = await githubService.getRepositoryInfo({ owner, repo });
+    return {
+      text: JSON.stringify(info, null, 2),
+    };
+  },
+});
+
+// ============================================================
+// MCP PROMPTS - Specialized review prompt templates
+// ============================================================
+
+// Helper to generate file summary from PR files
+async function getFileSummary(params: PRParams): Promise<string> {
+  const files = await githubService.getPRFiles(params);
+  return files
+    .map(
+      (f) =>
+        `- ${f.filename} (${f.status}): +${f.additions}/-${f.deletions} lines`
+    )
+    .join("\n");
+}
+
+// Consolidated Prompt: Review PR (unified entry point)
+server.addPrompt({
+  name: "review_pr",
+  description:
+    "Unified PR review prompt. Use 'type' to select focus: general, security, performance, documentation, or improvements",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "type",
+      description: "Review type",
+      required: false,
+      enum: [
+        "general",
+        "security",
+        "performance",
+        "documentation",
+        "improvements",
+      ],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary, files] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+      githubService.getPRFiles(params),
+    ]);
+
+    const reviewType = (args.type as string) ?? "general";
+    const customPrompt = args.customPrompt as string | undefined;
+
+    let rawPrompt: string;
+    switch (reviewType) {
+      case "security":
+        rawPrompt = generateSecurityReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+        break;
+      case "performance":
+        rawPrompt = generatePerformanceReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+        break;
+      case "documentation":
+        rawPrompt = generateDocumentationReviewPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+        break;
+      case "improvements":
+        rawPrompt = generateImprovementSuggestionsPrompt(
+          prDetails.title,
+          prDetails.body,
+          fileSummary,
+          { customPrompt }
+        );
+        break;
+      default:
+        rawPrompt = generateReviewPrompt(prDetails, files, customPrompt);
+    }
+
+    return rawPrompt;
+  },
+});
+
+// Prompt: Security-focused PR Review (specific variant)
+server.addPrompt({
+  name: "review_pr_security",
+  description:
+    "Security-focused PR review with vulnerability analysis and OWASP guidelines",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "severityLevel",
+      description: "Security severity level",
+      required: false,
+      enum: ["strict", "standard", "relaxed"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+    ]);
+    return generateSecurityReviewPrompt(
+      prDetails.title,
+      prDetails.body,
+      fileSummary,
+      {
+        severityLevel: args.severityLevel as SecuritySeverityLevel,
+        customPrompt: args.customPrompt as string | undefined,
+      }
+    );
+  },
+});
+
+// Prompt: Performance-focused PR Review
+server.addPrompt({
+  name: "review_pr_performance",
+  description:
+    "Performance-focused PR review identifying bottlenecks and optimization opportunities",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "focusArea",
+      description: "Performance focus area",
+      required: false,
+      enum: ["database", "algorithm", "memory", "network", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+    ]);
+    return generatePerformanceReviewPrompt(
+      prDetails.title,
+      prDetails.body,
+      fileSummary,
+      {
+        focusArea: args.focusArea as PerformanceFocusArea,
+        customPrompt: args.customPrompt as string | undefined,
+      }
+    );
+  },
+});
+
+// Prompt: Documentation-focused PR Review
+server.addPrompt({
+  name: "review_pr_documentation",
+  description:
+    "Documentation-focused PR review ensuring code changes are properly documented",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "docType",
+      description: "Documentation type to focus on",
+      required: false,
+      enum: ["code", "api", "readme", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+    ]);
+    return generateDocumentationReviewPrompt(
+      prDetails.title,
+      prDetails.body,
+      fileSummary,
+      {
+        docType: args.docType as DocumentationType,
+        customPrompt: args.customPrompt as string | undefined,
+      }
+    );
+  },
+});
+
+// Prompt: Improvement Suggestions
+server.addPrompt({
+  name: "suggest_pr_improvements",
+  description:
+    "Constructive improvement suggestions without blocking (always COMMENT)",
+  arguments: [
+    {
+      name: "owner",
+      description: "Repository owner/organization",
+      required: true,
+    },
+    { name: "repo", description: "Repository name", required: true },
+    { name: "prNumber", description: "Pull request number", required: true },
+    {
+      name: "suggestionLevel",
+      description: "Filter suggestions by impact level",
+      required: false,
+      enum: ["high", "medium", "low", "all"],
+    },
+    {
+      name: "customPrompt",
+      description: "Custom prompt to override default",
+      required: false,
+    },
+  ],
+  async load(args) {
+    const params = {
+      owner: args.owner as string,
+      repo: args.repo as string,
+      prNumber: parseInt(args.prNumber as string, 10),
+    };
+    const [prDetails, fileSummary] = await Promise.all([
+      githubService.getPRDetails(params),
+      getFileSummary(params),
+    ]);
+    return generateImprovementSuggestionsPrompt(
+      prDetails.title,
+      prDetails.body,
+      fileSummary,
+      {
+        suggestionLevel: args.suggestionLevel as SuggestionLevel,
+        customPrompt: args.customPrompt as string | undefined,
+      }
+    );
   },
 });
 

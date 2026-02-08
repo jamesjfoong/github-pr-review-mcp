@@ -4,12 +4,15 @@ MCP server providing GitHub PR review capabilities. Built with TypeScript, FastM
 
 ## Quick Reference
 
-| File                    | Purpose                               |
-| ----------------------- | ------------------------------------- |
-| `src/index.ts`          | Register MCP tools                    |
-| `src/github-service.ts` | GitHub API calls (use `this.octokit`) |
-| `src/code-analyzer.ts`  | Static analysis (pure functions)      |
-| `src/types.ts`          | Zod schemas + TypeScript types        |
+| File                    | Purpose                                |
+| ----------------------- | -------------------------------------- |
+| `src/index.ts`          | Register MCP tools, resources, prompts |
+| `src/github-service.ts` | GitHub API calls (use `this.octokit`)  |
+| `src/code-analyzer.ts`  | Static analysis (pure functions)       |
+| `src/types.ts`          | Zod schemas + TypeScript types         |
+| `src/logger.ts`         | Structured logging utility             |
+| `src/sanitizer.ts`      | Input sanitization utility             |
+| `src/prompts/`          | Specialized review prompt templates    |
 
 ## Core Rules
 

@@ -25,8 +25,7 @@ When adding new features, modifying types, or fixing type errors.
 - All parameters must have Zod schemas in `src/types.ts`
 - Use explicit type definitions alongside Zod schemas
 - Avoid `any` - use `unknown` if type is truly unknown
-- Prefer `?` over `| undefined` for optional fields
-- Use `| null` when external APIs can return null
+- Prefer `?` over `| undefined` and `| null` for optional fields
 - Strong typing: Always use explicit, strong types
 
 ## Examples

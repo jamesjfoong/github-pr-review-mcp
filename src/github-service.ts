@@ -5,17 +5,26 @@ import {
   type AddCommentParams,
   type CodeFile,
   type CommentTargetValidation,
+  ContextInclude,
   DEFAULT_AUTHOR,
   type DiffHunk,
   DiffSide,
   type EnsurePendingReviewParams,
+  FeedbackType,
   type FileDiffInfo,
   FileStatus,
+  type GetPRContextParams,
+  type GetPRFeedbackParams,
   type PendingReview,
   type PendingReviewComment,
+  type PRContext,
   type PRDetails,
+  type PRFeedback,
   type PRParams,
   PRState,
+  type RepoParams,
+  type RepositoryInfo,
+  type RespondToFeedbackParams,
   type Review,
   type ReviewComment,
   ReviewState,
@@ -87,7 +96,7 @@ export class GitHubService {
             id: review.id,
             state: this.mapReviewState(review.state),
             body: review.body ?? "",
-            author: review.user?.login ?? DEFAULT_AUTHOR,
+            user: review.user?.login ?? DEFAULT_AUTHOR,
             submittedAt: review.submitted_at ?? "",
             comments: comments.map((comment) => this.mapReviewComment(comment)),
           };
@@ -123,10 +132,12 @@ export class GitHubService {
     return {
       id: comment.id,
       body: comment.body ?? "",
-      path: comment.path ?? undefined,
-      line: comment.line ?? undefined,
-      author: comment.user?.login ?? DEFAULT_AUTHOR,
+      path: comment.path ?? "",
+      line: comment.line ?? 0,
+      side: this.mapDiffSide(comment.side ?? ""),
+      user: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
+      commitId: comment.commit_id ?? "",
     };
   }
 
@@ -143,8 +154,12 @@ export class GitHubService {
     return comments.map((comment) => ({
       id: comment.id,
       body: comment.body ?? "",
-      author: comment.user?.login ?? DEFAULT_AUTHOR,
+      path: "",
+      line: 0,
+      side: DiffSide.RIGHT,
+      user: comment.user?.login ?? DEFAULT_AUTHOR,
       createdAt: comment.created_at,
+      commitId: "",
     }));
   }
 
@@ -180,13 +195,20 @@ export class GitHubService {
   }
 
   async submitReview(params: SubmitReviewParams): Promise<void> {
+    // Transform comments to match Octokit's expected type
+    const comments = params.comments?.map((c) => ({
+      path: c.path,
+      line: c.line,
+      body: c.body,
+    }));
+
     await this.octokit.pulls.createReview({
       owner: params.owner,
       repo: params.repo,
       pull_number: params.prNumber,
       body: params.body,
       event: params.event,
-      comments: params.comments,
+      comments,
     });
   }
 
@@ -226,6 +248,39 @@ export class GitHubService {
     }
   }
 
+  async respondToFeedback(params: RespondToFeedbackParams): Promise<void> {
+    const message = params.body ?? `Fixed in ${params.commitId}`;
+    const failures: string[] = [];
+
+    // Process comments in parallel (but limited concurrency could be better if many)
+    await Promise.all(
+      params.commentIds.map(async (commentId) => {
+        try {
+          // Attempt to reply to a review comment (diff comment)
+          await this.octokit.pulls.createReplyForReviewComment({
+            owner: params.owner,
+            repo: params.repo,
+            pull_number: params.prNumber,
+            comment_id: commentId,
+            body: message,
+          });
+        } catch (error) {
+          const err = error instanceof Error ? error.message : String(error);
+          console.warn(
+            `Failed to reply to comment ${commentId}: ${err}. It might not be a scalable review comment.`
+          );
+          failures.push(`ID ${commentId}: ${err}`);
+        }
+      })
+    );
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to reply to ${failures.length} comments. Details: ${failures.join("; ")}`
+      );
+    }
+  }
+
   async updatePR(params: UpdatePRParams): Promise<void> {
     const updateData: {
       owner: string;
@@ -256,13 +311,13 @@ export class GitHubService {
 
     const data = response.data;
     return {
-      title: data.title,
-      body: data.body,
+      title: data.title ?? "",
+      body: data.body ?? "",
       state: data.state,
-      author: data.user?.login,
+      author: data.user?.login ?? DEFAULT_AUTHOR,
       created_at: data.created_at,
       updated_at: data.updated_at,
-      mergeable: data.mergeable,
+      mergeable: data.mergeable ?? false,
       merged: data.merged,
       additions: data.additions,
       deletions: data.deletions,
@@ -306,7 +361,7 @@ export class GitHubService {
   private parseDiffHunks(patch: string): DiffHunk[] {
     const hunks: DiffHunk[] = [];
     const lines = patch.split("\n");
-    let currentHunk: DiffHunk | null = null;
+    let currentHunk: DiffHunk = null;
 
     for (const line of lines) {
       // Match hunk header: @@ -oldStart,oldLines +newStart,newLines @@
@@ -713,7 +768,7 @@ export class GitHubService {
     return {
       id: comment.id,
       path: comment.path ?? "",
-      line: comment.line ?? null,
+      line: comment.line ?? undefined,
       side: this.mapDiffSide(comment.side ?? null),
       body: comment.body ?? "",
       commitId: comment.commit_id ?? "",
@@ -722,9 +777,150 @@ export class GitHubService {
     };
   }
 
-  private mapDiffSide(side: string | null | undefined): DiffSide | null {
+  private mapDiffSide(side: string): DiffSide {
     if (side === "LEFT") return DiffSide.LEFT;
-    if (side === "RIGHT") return DiffSide.RIGHT;
-    return null;
+    return DiffSide.RIGHT; // Default to RIGHT if null or unknown
+  }
+
+  /**
+   * Get repository information
+   * @param params - Repository parameters (owner, repo)
+   * @returns Repository information
+   * @throws Error if GitHub API call fails
+   */
+  async getRepositoryInfo(params: RepoParams): Promise<RepositoryInfo> {
+    try {
+      const { data } = await this.octokit.repos.get({
+        owner: params.owner,
+        repo: params.repo,
+      });
+
+      return {
+        name: data.name,
+        fullName: data.full_name,
+        description: data.description ?? "",
+        owner: data.owner.login,
+        defaultBranch: data.default_branch,
+        private: data.private,
+        language: data.language ?? "",
+        topics: data.topics ?? [],
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        pushedAt: data.pushed_at,
+        stars: data.stargazers_count,
+        forks: data.forks_count,
+        openIssues: data.open_issues_count,
+        license: data.license?.spdx_id ?? "NONE",
+        hasIssues: data.has_issues,
+        hasWiki: data.has_wiki,
+        hasPages: data.has_pages,
+        archived: data.archived,
+        disabled: data.disabled,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Error fetching repository info:", message);
+      throw new Error(`Failed to fetch repository info: ${message}`);
+    }
+  }
+
+  /**
+   * Get PR feedback (reviews and/or comments) - consolidated tool
+   * @param params - Feedback parameters including type filter
+   * @returns Combined feedback with summary
+   */
+  async getPRFeedback(params: GetPRFeedbackParams): Promise<PRFeedback> {
+    try {
+      const type = params.type ?? FeedbackType.ALL;
+      const prParams: PRParams = {
+        owner: params.owner,
+        repo: params.repo,
+        prNumber: params.prNumber,
+      };
+
+      let reviews: Review[] = [];
+      let comments: ReviewComment[] = [];
+
+      // Fetch based on type
+      if (type === FeedbackType.REVIEWS || type === FeedbackType.ALL) {
+        reviews = await this.getPRReviews(prParams);
+      }
+
+      if (type === FeedbackType.COMMENTS || type === FeedbackType.ALL) {
+        comments = await this.getPRComments(prParams);
+      }
+
+      // Calculate summary
+      const approvals = reviews.filter(
+        (r) => r.state === ReviewState.APPROVED
+      ).length;
+      const changesRequested = reviews.filter(
+        (r) => r.state === ReviewState.CHANGES_REQUESTED
+      ).length;
+
+      return {
+        reviews: type !== FeedbackType.COMMENTS ? reviews : undefined,
+        comments: type !== FeedbackType.REVIEWS ? comments : undefined,
+        summary: {
+          totalReviews: reviews.length,
+          totalComments: comments.length,
+          approvals,
+          changesRequested,
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get PR feedback: ${message}`);
+    }
+  }
+
+  /**
+   * Get PR context (details and/or files) - consolidated tool
+   * @param params - Context parameters including include filter
+   * @returns Combined context with summary
+   */
+  async getPRContext(params: GetPRContextParams): Promise<PRContext> {
+    try {
+      const include = params.include ?? ContextInclude.ALL;
+      const prParams: PRParams = {
+        owner: params.owner,
+        repo: params.repo,
+        prNumber: params.prNumber,
+      };
+
+      let details: PRDetails | undefined;
+      let files: CodeFile[] = [];
+
+      // Fetch based on include
+      if (
+        include === ContextInclude.DETAILS ||
+        include === ContextInclude.ALL
+      ) {
+        details = await this.getPRDetails(prParams);
+      }
+
+      if (include === ContextInclude.FILES || include === ContextInclude.ALL) {
+        files = await this.getPRFiles(prParams);
+      }
+
+      // Calculate summary
+      const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
+      const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+      return {
+        details: include !== ContextInclude.FILES ? details : undefined,
+        files: include !== ContextInclude.DETAILS ? files : undefined,
+        summary: {
+          title: details?.title,
+          state: details?.state,
+          totalFiles: files.length,
+          totalAdditions,
+          totalDeletions,
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get PR context: ${message}`);
+    }
   }
 }
